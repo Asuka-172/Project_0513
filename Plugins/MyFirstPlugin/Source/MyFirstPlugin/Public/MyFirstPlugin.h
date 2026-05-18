@@ -11,4 +11,9 @@ public:
 	/** IModuleInterface implementation */
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
+	void AddMenuExtension();
+	void OpenToolWindow();
+private:
+	// 用于移除菜单扩展的句柄
+	TSharedPtr<FExtender> MenuExtender;
 };

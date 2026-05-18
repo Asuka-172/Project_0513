@@ -25,7 +25,11 @@ public class MyFirstPlugin : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"Core",
+                "Core",
+				"Slate",
+				"SlateCore",
+				"EditorStyle",
+				"LevelEditor"
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
