@@ -26,7 +26,7 @@ public class MyFirstPlugin : ModuleRules
 			new string[]
 			{
                 "Core",
-				"Slate",
+                "Slate",
 				"SlateCore",
 				"EditorStyle",
 				"LevelEditor"

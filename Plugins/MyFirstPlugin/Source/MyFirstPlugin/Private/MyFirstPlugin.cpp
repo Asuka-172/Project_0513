@@ -2,6 +2,7 @@
 
 #include "MyFirstPlugin.h"
 #include "LevelEditor.h"
+#include "SMyProgressBar.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Widgets/Input/SEditableTextBox.h"
@@ -45,8 +46,8 @@ void FMyFirstPluginModule::AddMenuExtension()
 
 void FMyFirstPluginModule::OpenToolWindow()
 {
-    // 创建输入框的文本变量（共享状态）
-    TSharedPtr<SEditableTextBox> InputBox;
+    // 创建进度条控件，用智能指针保存，以便在按钮回调中更新
+    TSharedPtr<SMyProgressBar> ProgressBar;
 
     // 创建窗口内容
     TSharedRef<SWidget> WindowContent = SNew(SVerticalBox)
@@ -57,39 +58,32 @@ void FMyFirstPluginModule::OpenToolWindow()
         .Padding(10)
         [
             SNew(STextBlock)
-                .Text(FText::FromString("Welcome to My First Tool"))
-                .Font(FSlateFontInfo(FPaths::EngineContentDir() / TEXT("Slate/Fonts/Roboto-Bold.ttf"), 16))
+                .Text(FText::FromString("Custom Progress Bar"))
+                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
         ]
 
-        // 提示文本
+        // 进度条（水平填充）
         + SVerticalBox::Slot()
         .AutoHeight()
         .Padding(10)
         [
-            SNew(STextBlock)
-                .Text(FText::FromString("Type something and click the button:"))
+            SAssignNew(ProgressBar, SMyProgressBar)
+                .Percent(0.5f)     // 初始 50%
+                .BarColor(FLinearColor::Green)
         ]
 
-        // 输入框
-        + SVerticalBox::Slot()
-        .AutoHeight()
-        .Padding(10)
-        [
-            SAssignNew(InputBox, SEditableTextBox)
-                .HintText(FText::FromString("Enter text here..."))
-        ]
-
-        // 按钮
+        // 按钮：增加进度
         + SVerticalBox::Slot()
         .AutoHeight()
         .Padding(10)
         [
             SNew(SButton)
-                .Text(FText::FromString("Print to Log"))
-                .OnClicked_Lambda([InputBox]() -> FReply
+                .Text(FText::FromString("Increase Progress (+0.1)"))
+                .OnClicked_Lambda([ProgressBar]() -> FReply
                     {
-                        FString Text = InputBox->GetText().ToString();
-                        UE_LOG(LogTemp, Warning, TEXT("User typed: %s"), *Text);
+                        static float TestPercent = 0.5f;
+                        TestPercent = FMath::Fmod(TestPercent + 0.1f, 1.0f); // 0~1 循环
+                        ProgressBar->SetPercent(TestPercent);
                         return FReply::Handled();
                     })
         ];
@@ -97,12 +91,11 @@ void FMyFirstPluginModule::OpenToolWindow()
     // 创建窗口
     TSharedRef<SWindow> ToolWindow = SNew(SWindow)
         .Title(FText::FromString("My First Tool"))
-        .ClientSize(FVector2D(500, 300))
+        .ClientSize(FVector2D(500, 200))
         [
             WindowContent
         ];
 
-    // 显示窗口
     FSlateApplication::Get().AddWindow(ToolWindow);
 }
 
