@@ -2,7 +2,7 @@
 
 #include "MyFirstPlugin.h"
 #include "LevelEditor.h"
-#include "SMyProgressBar.h"
+#include "SColorWheel.h"            //颜色控件
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Widgets/Input/SEditableTextBox.h"
@@ -44,7 +44,8 @@ void FMyFirstPluginModule::AddMenuExtension()
     MenuExtender = Extender; // 保存以便 Shutdown 时移除
 }
 
-void FMyFirstPluginModule::OpenToolWindow()
+/*//#include "SMyProgressBar.h"       //进度条控件
+void FMyFirstPluginModule::OpenToolWindow()           //进度条控件窗口
 {
     // 创建进度条控件，用智能指针保存，以便在按钮回调中更新
     TSharedPtr<SMyProgressBar> ProgressBar;
@@ -92,6 +93,75 @@ void FMyFirstPluginModule::OpenToolWindow()
     TSharedRef<SWindow> ToolWindow = SNew(SWindow)
         .Title(FText::FromString("My First Tool"))
         .ClientSize(FVector2D(500, 200))
+        [
+            WindowContent
+        ];
+
+    FSlateApplication::Get().AddWindow(ToolWindow);
+}*/
+
+void FMyFirstPluginModule::OpenToolWindow()
+{
+    TSharedPtr<STextBlock> ColorText;  // 用于显示 RGB 文本
+
+    TSharedRef<SWidget> WindowContent = SNew(SVerticalBox)
+
+        // 标题
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(10)
+        [
+            SNew(STextBlock)
+                .Text(FText::FromString("Color Picker"))
+                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
+        ]
+
+        // RGB 数值显示
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(10)
+        [
+            SAssignNew(ColorText, STextBlock)
+                .Text(FText::FromString("RGB: (1.00, 0.00, 0.00)"))
+        ]
+
+        // 色环选择器
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(10)
+        [
+            SNew(SColorWheel)
+                .OnColorChanged(FOnColorChanged::CreateLambda(
+                    [ColorText](FLinearColor NewColor)
+                    {
+                        if (ColorText.IsValid())
+                        {
+                            FString RGBStr = FString::Printf(TEXT("RGB: (%.2f, %.2f, %.2f)"),
+                                NewColor.R, NewColor.G, NewColor.B);
+                            ColorText->SetText(FText::FromString(RGBStr));
+                        }
+                    }))
+        ]
+
+        // 按钮测试（原有功能可保留）
+        // ...
+
+        +SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(10)
+        [
+            SNew(SButton)
+                .Text(FText::FromString("Print to Log"))
+                .OnClicked_Lambda([]() -> FReply
+                    {
+                        UE_LOG(LogTemp, Warning, TEXT("Button clicked"));
+                        return FReply::Handled();
+                    })
+        ];
+
+    TSharedRef<SWindow> ToolWindow = SNew(SWindow)
+        .Title(FText::FromString("My First Tool"))
+        .ClientSize(FVector2D(500, 250))
         [
             WindowContent
         ];

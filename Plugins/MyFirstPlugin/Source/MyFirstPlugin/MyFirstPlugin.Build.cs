@@ -29,7 +29,7 @@ public class MyFirstPlugin : ModuleRules
                 "Slate",
 				"SlateCore",
 				"EditorStyle",
-				"LevelEditor"
+				"LevelEditor",
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
@@ -42,6 +42,7 @@ public class MyFirstPlugin : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
+                "InputCore"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

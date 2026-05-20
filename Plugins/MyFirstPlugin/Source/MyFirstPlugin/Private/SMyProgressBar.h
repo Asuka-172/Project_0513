@@ -8,7 +8,6 @@
 class SMyProgressBar : public SLeafWidget
 {
 public:
-    // 手动定义 FArguments，代替 SLATE_BEGIN_ARGS / SLATE_ATTRIBUTE
     struct FArguments : public TSlateBaseNamedArgs<SMyProgressBar>
     {
         typedef FArguments WidgetArgsType;
