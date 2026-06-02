@@ -28,8 +28,9 @@ public class MyFirstPlugin : ModuleRules
                 "Core",
                 "Slate",
 				"SlateCore",
-				"EditorStyle",
 				"LevelEditor",
+				"Engine",
+				"UnrealEd"
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);

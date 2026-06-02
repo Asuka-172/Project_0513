@@ -32,13 +32,4 @@ private:
     TSharedPtr<SSlider> NoiseStrengthSlider;
     TSharedPtr<SSlider> VignetteStrengthSlider;
 
-    // »Øµ÷
-    void OnGrayscaleWeightChanged(float Value);
-    void OnGrayscaleContrastChanged(float Value);
-    void OnGrayscaleBrightnessChanged(float Value);
-    void OnInvertWeightChanged(float Value);
-    void OnInvertThresholdChanged(float Value);
-    void OnSepiaStrengthChanged(float Value);
-    void OnNoiseStrengthChanged(float Value);
-    void OnVignetteStrengthChanged(float Value);
 };

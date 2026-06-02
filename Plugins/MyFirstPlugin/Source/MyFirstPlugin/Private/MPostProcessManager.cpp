@@ -8,9 +8,9 @@ void UMPostProcessManager::Initialize(APostProcessVolume* Volume)
     if (!PostProcessVolume) return;
 
     // 加载材质资源（路径根据实际调整）
-    UMaterial* GrayscaleMat = LoadObject<UMaterial>(nullptr, TEXT("/Game/Materials/M_PP_Grayscale"));
-    UMaterial* InvertMat = LoadObject<UMaterial>(nullptr, TEXT("/Game/Materials/M_PP_Invert"));
-    UMaterial* FilmMat = LoadObject<UMaterial>(nullptr, TEXT("/Game/Materials/M_PP_Film"));
+    UMaterial* GrayscaleMat = LoadObject<UMaterial>(nullptr, TEXT("/Game/M_PP_Grayscale"));
+    UMaterial* InvertMat = LoadObject<UMaterial>(nullptr, TEXT("/Game/M_PP_Invert"));
+    UMaterial* FilmMat = LoadObject<UMaterial>(nullptr, TEXT("/Game/M_PP_Film"));
 
     if (GrayscaleMat) GrayscaleMID = UMaterialInstanceDynamic::Create(GrayscaleMat, this);
     if (InvertMat) InvertMID = UMaterialInstanceDynamic::Create(InvertMat, this);

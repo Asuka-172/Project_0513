@@ -7,7 +7,7 @@
 #include "MPostProcessManager.generated.h"
 
 UCLASS()
-class UMPostProcessManager : public UObject
+class MYFIRSTPLUGIN_API UMPostProcessManager : public UObject
 {
     GENERATED_BODY()
 

@@ -7,7 +7,7 @@
 
 void SPostProcessPanel::Construct(const FArguments& InArgs, UMPostProcessManager* InManager)
 {
-    Manager = InManager;
+    Manager = InManager; // ©иртн╙ nullptr
 
     ChildSlot
         [
