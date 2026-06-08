@@ -13,6 +13,8 @@
 #include "Engine/PostProcessVolume.h"
 #include "Editor.h"
 #include "EngineUtils.h"
+#include "Network/FTcpEchoServer.h"
+#include "Network/FTcpEchoClient.h"
 
 #define LOCTEXT_NAMESPACE "FMyFirstPluginModule"
 
@@ -165,6 +167,64 @@ void FMyFirstPluginModule::OpenToolWindow()
                                 UE_LOG(LogTemp, Warning, TEXT("Button clicked"));
                                 return FReply::Handled();
                             })
+                ]
+
+            // ----- 网络测试区 -----
+            + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(10)
+                [
+                    SNew(STextBlock)
+                        .Text(FText::FromString("TCP Echo Test"))
+                        .Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
+                ]
+
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(10)
+                [
+                    SNew(SHorizontalBox)
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        [
+                            SNew(SButton)
+                                .Text(FText::FromString("Start Server"))
+                                .OnClicked_Lambda([]() -> FReply
+                                    {
+                                        static FTcpEchoServer Server; // 保持生命周期
+                                        static bool bStarted = false;
+                                        if (!bStarted)
+                                        {
+                                            if (Server.Start(12345))
+                                                bStarted = true;
+                                        }
+                                        return FReply::Handled();
+                                    })
+                        ]
+                    + SHorizontalBox::Slot()
+                        .Padding(10, 0, 0, 0)
+                        [
+                            SNew(SButton)
+                                .Text(FText::FromString("Send Echo"))
+                                .OnClicked_Lambda([]() -> FReply
+                                    {
+                                        static FTcpEchoClient Client;
+                                        static bool bConnected = false;
+                                        if (!bConnected)
+                                        {
+                                            if (Client.Connect(TEXT("127.0.0.1"), 12345))
+                                            {
+                                                bConnected = true;
+                                                Client.SendMessage(TEXT("Hello, Server!"));
+                                            }
+                                        }
+                                        else
+                                        {
+                                            Client.SendMessage(TEXT("Hello again!"));
+                                        }
+                                        return FReply::Handled();
+                                    })
+                        ]
                 ]
         ];
 
