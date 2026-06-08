@@ -15,6 +15,7 @@
 #include "EngineUtils.h"
 #include "Network/FTcpEchoServer.h"
 #include "Network/FTcpEchoClient.h"
+#include "Network/FUdpChatRoom.h"
 
 #define LOCTEXT_NAMESPACE "FMyFirstPluginModule"
 
@@ -212,7 +213,7 @@ void FMyFirstPluginModule::OpenToolWindow()
                                         static bool bConnected = false;
                                         if (!bConnected)
                                         {
-                                            if (Client.Connect(TEXT("127.0.0.1"), 12345))
+                                            if (Client.Connect(TEXT("127.0.0.1"), 12346))
                                             {
                                                 bConnected = true;
                                                 Client.SendMessage(TEXT("Hello, Server!"));
@@ -225,6 +226,110 @@ void FMyFirstPluginModule::OpenToolWindow()
                                         return FReply::Handled();
                                     })
                         ]
+                ]
+
+            // ----- UDP 聊天区域 -----
+            + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(10)
+                [
+                    SNew(STextBlock)
+                        .Text(FText::FromString("UDP Chat Room"))
+                        .Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
+                ]
+
+                // 聊天消息显示区
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(10)
+                [
+                    SAssignNew(ChatLogText, STextBlock)
+                        .Text(FText::FromString("Chat log will appear here..."))
+                        .AutoWrapText(true)
+                ]
+
+                // 输入框 + 发送按钮
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(10)
+                [
+                    SNew(SHorizontalBox)
+                        + SHorizontalBox::Slot()
+                        .FillWidth(1.0f)
+                        [
+                            SAssignNew(ChatInputBox, SEditableTextBox)
+                                .HintText(FText::FromString("Type a message..."))
+                        ]
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .Padding(5, 0, 0, 0)
+                        [
+                            SNew(SButton)
+                                .Text(FText::FromString("Send"))
+                                .OnClicked_Lambda([this]() -> FReply
+                                    {
+                                        if (ChatRoom.IsValid() && ChatInputBox.IsValid())
+                                        {
+                                            FString Message = ChatInputBox->GetText().ToString();
+                                            if (!Message.IsEmpty())
+                                            {
+                                                // 发送给自己（本地回环），演示用
+                                                ChatRoom->SendMessage(Message, TEXT("127.0.0.1"), 12400);
+                                                ChatInputBox->SetText(FText::GetEmpty());
+                                            }
+                                        }
+                                        return FReply::Handled();
+                                    })
+                        ]
+                ]
+
+            // 启动聊天室按钮
+            + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(10)
+                [
+                    SNew(SButton)
+                        .Text(FText::FromString("Start Chat Room"))
+                        .OnClicked_Lambda([this]() -> FReply
+                            {
+                                static bool bChatStarted = false;
+                                if (!bChatStarted)
+                                {
+                                    ChatRoom = MakeShareable(new FUdpChatRoom);
+                                    if (ChatRoom->Initialize(12400))  // 使用端口12346
+                                    {
+                                        bChatStarted = true;
+                                        // 设置定时器轮询消息队列（因Slate窗口不在Tick中，我们用Timer或手动刷新）
+                                    }
+                                }
+                                return FReply::Handled();
+                            })
+                ]
+
+            // 刷新按钮（手动拉取新消息）
+            + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(10)
+                [
+                    SNew(SButton)
+                        .Text(FText::FromString("Refresh"))
+                        .OnClicked_Lambda([this]() -> FReply
+                            {
+                                if (ChatRoom.IsValid() && ChatLogText.IsValid())
+                                {
+                                    FString AllMessages;
+                                    FString Msg, Sender;
+                                    while (ChatRoom->GetNextMessage(Msg, Sender))
+                                    {
+                                        AllMessages += FString::Printf(TEXT("[%s]: %s\n"), *Sender, *Msg);
+                                    }
+                                    if (!AllMessages.IsEmpty())
+                                    {
+                                        ChatLogText->SetText(FText::FromString(AllMessages));
+                                    }
+                                }
+                                return FReply::Handled();
+                            })
                 ]
         ];
 

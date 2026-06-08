@@ -46,7 +46,9 @@ public class MyFirstPlugin : ModuleRules
 				"Slate",
 				"SlateCore",
                 "InputCore",
-                "UnrealEd"
+                "UnrealEd",
+                "Networking",
+                "Sockets",
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

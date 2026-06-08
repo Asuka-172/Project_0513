@@ -10,6 +10,10 @@ class UMPostProcessManager;
 class SPostProcessPanel;
 class ILevelEditor;
 
+class FUdpChatRoom;
+class SEditableTextBox;
+class STextBlock;
+
 class FMyFirstPluginModule : public IModuleInterface
 {
 public:
@@ -27,4 +31,7 @@ private:
 	APostProcessVolume* PostProcessVolume = nullptr;
 	UMPostProcessManager* PostProcessManager = nullptr;
 	FDelegateHandle LevelEditorCreatedHandle;
+	TSharedPtr<FUdpChatRoom> ChatRoom;
+	TSharedPtr<SEditableTextBox> ChatInputBox;
+	TSharedPtr<STextBlock> ChatLogText;
 };
