@@ -15,6 +15,7 @@ class SEditableTextBox;
 class STextBlock;
 
 class SFpsChart;
+class SPerformancePanel;
 
 class FMyFirstPluginModule : public IModuleInterface
 {
@@ -39,5 +40,6 @@ private:
 	// –‘ƒ‹Õº±Ì
 	TSharedPtr<SFpsChart> FpsChart;
 	FTSTicker::FDelegateHandle TickerHandle;
+	TSharedPtr<SPerformancePanel> PerformancePanel;
 	bool Tick(float DeltaTime);
 };

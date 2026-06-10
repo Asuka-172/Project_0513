@@ -33,6 +33,7 @@ public class MyFirstPlugin : ModuleRules
 				"UnrealEd",
                 "Networking",
                 "Sockets",
+				"RHI"
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
@@ -49,6 +50,7 @@ public class MyFirstPlugin : ModuleRules
                 "UnrealEd",
                 "Networking",
                 "Sockets",
+				"RHI"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

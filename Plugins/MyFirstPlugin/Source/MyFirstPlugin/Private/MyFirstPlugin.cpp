@@ -17,6 +17,7 @@
 #include "Network/FTcpEchoClient.h"
 #include "Network/FUdpChatRoom.h"
 #include "SFpsChart/SFpsChart.h"
+#include "SFpsChart/SPerformancePanel.h"
 
 #define LOCTEXT_NAMESPACE "FMyFirstPluginModule"
 
@@ -82,6 +83,7 @@ void FMyFirstPluginModule::ShutdownModule()
     {
         FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
     }
+    PerformancePanel.Reset();
     FpsChart.Reset();
 }
 
@@ -344,21 +346,20 @@ void FMyFirstPluginModule::OpenToolWindow()
                             })
                 ]
 
-            // ----- 帧率图表区域 -----
+            // ----- 性能监控面板 -----
             + SVerticalBox::Slot()
                 .AutoHeight()
                 .Padding(10)
                 [
                     SNew(STextBlock)
-                        .Text(FText::FromString("FPS Chart"))
+                        .Text(FText::FromString("Performance Monitor"))
                         .Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
                 ]
                 + SVerticalBox::Slot()
                 .AutoHeight()
                 .Padding(10)
                 [
-                    SAssignNew(FpsChart, SFpsChart)
-                        .MaxDataPoints(200)
+                    SAssignNew(PerformancePanel, SPerformancePanel)
                 ]
         ];
 
@@ -373,10 +374,9 @@ void FMyFirstPluginModule::OpenToolWindow()
 //实现Tick函数
 bool FMyFirstPluginModule::Tick(float DeltaTime)
 {
-    // 每帧更新图表（如果图表控件存在）
-    if (FpsChart.IsValid())
+    if (PerformancePanel.IsValid())
     {
-        FpsChart->AddDataPoint(DeltaTime);
+        PerformancePanel->UpdateStats(DeltaTime);
     }
     return true; // 继续执行
 }
