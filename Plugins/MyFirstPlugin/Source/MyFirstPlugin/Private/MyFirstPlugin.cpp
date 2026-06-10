@@ -16,6 +16,7 @@
 #include "Network/FTcpEchoServer.h"
 #include "Network/FTcpEchoClient.h"
 #include "Network/FUdpChatRoom.h"
+#include "SFpsChart/SFpsChart.h"
 
 #define LOCTEXT_NAMESPACE "FMyFirstPluginModule"
 
@@ -48,6 +49,10 @@ void FMyFirstPluginModule::StartupModule()
 {
     UE_LOG(LogTemp, Warning, TEXT("MyFirstPlugin: Module started!"));
     AddMenuExtension();
+
+    // 注册定时器，每帧更新FPS图表
+    TickerHandle = FTSTicker::GetCoreTicker().AddTicker(
+        FTickerDelegate::CreateRaw(this, &FMyFirstPluginModule::Tick));
 }
 
 void FMyFirstPluginModule::ShutdownModule()
@@ -71,6 +76,13 @@ void FMyFirstPluginModule::ShutdownModule()
             LevelEditorModule.GetMenuExtensibilityManager()->RemoveExtender(MenuExtender);
         }
     }
+
+    //移除定时器
+    if (TickerHandle.IsValid())
+    {
+        FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
+    }
+    FpsChart.Reset();
 }
 
 void FMyFirstPluginModule::AddMenuExtension()
@@ -331,6 +343,23 @@ void FMyFirstPluginModule::OpenToolWindow()
                                 return FReply::Handled();
                             })
                 ]
+
+            // ----- 帧率图表区域 -----
+            + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(10)
+                [
+                    SNew(STextBlock)
+                        .Text(FText::FromString("FPS Chart"))
+                        .Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
+                ]
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(10)
+                [
+                    SAssignNew(FpsChart, SFpsChart)
+                        .MaxDataPoints(200)
+                ]
         ];
 
     TSharedRef<SWindow> ToolWindow = SNew(SWindow)
@@ -339,6 +368,17 @@ void FMyFirstPluginModule::OpenToolWindow()
         [WindowContent];
 
     FSlateApplication::Get().AddWindow(ToolWindow);
+}
+
+//实现Tick函数
+bool FMyFirstPluginModule::Tick(float DeltaTime)
+{
+    // 每帧更新图表（如果图表控件存在）
+    if (FpsChart.IsValid())
+    {
+        FpsChart->AddDataPoint(DeltaTime);
+    }
+    return true; // 继续执行
 }
 
 IMPLEMENT_MODULE(FMyFirstPluginModule, MyFirstPlugin)

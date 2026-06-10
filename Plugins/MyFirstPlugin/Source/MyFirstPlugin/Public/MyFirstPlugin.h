@@ -14,6 +14,8 @@ class FUdpChatRoom;
 class SEditableTextBox;
 class STextBlock;
 
+class SFpsChart;
+
 class FMyFirstPluginModule : public IModuleInterface
 {
 public:
@@ -34,4 +36,8 @@ private:
 	TSharedPtr<FUdpChatRoom> ChatRoom;
 	TSharedPtr<SEditableTextBox> ChatInputBox;
 	TSharedPtr<STextBlock> ChatLogText;
+	// –‘ƒ‹Õº±Ì
+	TSharedPtr<SFpsChart> FpsChart;
+	FTSTicker::FDelegateHandle TickerHandle;
+	bool Tick(float DeltaTime);
 };
