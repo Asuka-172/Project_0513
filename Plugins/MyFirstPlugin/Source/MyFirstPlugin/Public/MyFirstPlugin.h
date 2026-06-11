@@ -17,6 +17,8 @@ class STextBlock;
 class SFpsChart;
 class SPerformancePanel;
 
+class FAssetInfoCollector;
+
 class FMyFirstPluginModule : public IModuleInterface
 {
 public:
@@ -42,4 +44,7 @@ private:
 	FTSTicker::FDelegateHandle TickerHandle;
 	TSharedPtr<SPerformancePanel> PerformancePanel;
 	bool Tick(float DeltaTime);
+	//×ÊÔ´¼ìË÷
+	TSharedPtr<STextBlock> AssetStatsText;
+	TSharedPtr<FAssetInfoCollector> AssetInfoCollector;
 };

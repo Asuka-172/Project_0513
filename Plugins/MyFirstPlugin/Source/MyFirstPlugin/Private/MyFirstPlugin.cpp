@@ -18,6 +18,7 @@
 #include "Network/FUdpChatRoom.h"
 #include "SFpsChart/SFpsChart.h"
 #include "SFpsChart/SPerformancePanel.h"
+#include "AssetTools/FAssetInfoCollector.h"
 
 #define LOCTEXT_NAMESPACE "FMyFirstPluginModule"
 
@@ -361,6 +362,65 @@ void FMyFirstPluginModule::OpenToolWindow()
                 [
                     SAssignNew(PerformancePanel, SPerformancePanel)
                 ]
+
+            // ----- ×ÊÔ´¼ìË÷ ÇøÓò -----
+            + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(10)
+                [
+                    SNew(STextBlock)
+                        .Text(FText::FromString("Asset Statistics"))
+                        .Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
+                ]
+
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(10)
+                [
+                    SNew(SHorizontalBox)
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        [
+                            SNew(SButton)
+                                .Text(FText::FromString("Refresh Stats"))
+                                .OnClicked_Lambda([this]() -> FReply
+                                    {
+                                        if (!AssetInfoCollector.IsValid())
+                                        {
+                                            AssetInfoCollector = MakeShareable(new FAssetInfoCollector);
+                                        }
+                                        AssetInfoCollector->Refresh();
+
+                                        if (AssetStatsText.IsValid())
+                                        {
+                                            FString Stats = FString::Printf(
+                                                TEXT("Total Assets: %d\n")
+                                                TEXT("Textures: %d\n")
+                                                TEXT("Materials: %d\n")
+                                                TEXT("Blueprints: %d\n")
+                                                TEXT("Static Meshes: %d"),
+                                                AssetInfoCollector->GetTotalCount(),
+                                                AssetInfoCollector->GetTextureCount(),
+                                                AssetInfoCollector->GetMaterialCount(),
+                                                AssetInfoCollector->GetBlueprintCount(),
+                                                AssetInfoCollector->GetStaticMeshCount()
+                                            );
+                                            AssetStatsText->SetText(FText::FromString(Stats));
+                                        }
+                                        return FReply::Handled();
+                                    })
+                        ]
+                ]
+
+            + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(10)
+                [
+                    SAssignNew(AssetStatsText, STextBlock)
+                        .Text(FText::FromString("Click Refresh to load statistics..."))
+                        .AutoWrapText(true)
+                ]
+
         ];
 
     TSharedRef<SWindow> ToolWindow = SNew(SWindow)
