@@ -5,6 +5,9 @@
 #include "Modules/ModuleManager.h"
 #include "Engine/PostProcessVolume.h"
 #include "ILevelEditor.h"
+#include "AssetToolsModule.h"
+#include "IAssetTools.h"
+
 
 class UMPostProcessManager;
 class SPostProcessPanel;
@@ -18,6 +21,7 @@ class SFpsChart;
 class SPerformancePanel;
 
 class FAssetInfoCollector;
+class FAssetTypeActions_Base;
 
 class FMyFirstPluginModule : public IModuleInterface
 {
@@ -47,4 +51,7 @@ private:
 	//资源检索
 	TSharedPtr<STextBlock> AssetStatsText;
 	TSharedPtr<FAssetInfoCollector> AssetInfoCollector;
+	//右键活动
+	TSharedPtr<FAssetTypeActions_Base> MyAssetActions;
+	TArray<TSharedPtr<FAssetTypeActions_Base>> RegisteredAssetActions;
 };

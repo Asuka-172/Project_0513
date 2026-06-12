@@ -19,6 +19,8 @@
 #include "SFpsChart/SFpsChart.h"
 #include "SFpsChart/SPerformancePanel.h"
 #include "AssetTools/FAssetInfoCollector.h"
+#include "AssetTools/FMyAssetActions.h"
+
 
 #define LOCTEXT_NAMESPACE "FMyFirstPluginModule"
 
@@ -55,6 +57,18 @@ void FMyFirstPluginModule::StartupModule()
     // 注册定时器，每帧更新FPS图表
     TickerHandle = FTSTicker::GetCoreTicker().AddTicker(
         FTickerDelegate::CreateRaw(this, &FMyFirstPluginModule::Tick));
+
+    // 注册资产右键菜单
+    IAssetTools& AssetTools =
+        FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+
+    TSharedRef<FMyAssetActions> TextureActions = MakeShareable(new FMyAssetActions(UTexture::StaticClass()));
+    AssetTools.RegisterAssetTypeActions(TextureActions);          // 注册
+    RegisteredAssetActions.Add(TextureActions);                   // 保存共享指针以便卸载
+
+    TSharedRef<FMyAssetActions> MaterialActions = MakeShareable(new FMyAssetActions(UMaterial::StaticClass()));
+    AssetTools.RegisterAssetTypeActions(MaterialActions);
+    RegisteredAssetActions.Add(MaterialActions);
 }
 
 void FMyFirstPluginModule::ShutdownModule()
@@ -86,6 +100,22 @@ void FMyFirstPluginModule::ShutdownModule()
     }
     PerformancePanel.Reset();
     FpsChart.Reset();
+
+    // 取消注册资产 Actions
+    if (FModuleManager::Get().IsModuleLoaded("AssetTools"))
+    {
+        IAssetTools& AssetTools =
+            FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+        for (TSharedPtr<FAssetTypeActions_Base>& Action : RegisteredAssetActions)
+        {
+            if (Action.IsValid())
+            {
+                AssetTools.UnregisterAssetTypeActions(Action.ToSharedRef());
+            }
+        }
+    }
+    RegisteredAssetActions.Empty();
+
 }
 
 void FMyFirstPluginModule::AddMenuExtension()

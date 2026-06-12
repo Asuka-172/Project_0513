@@ -35,6 +35,8 @@ public class MyFirstPlugin : ModuleRules
                 "Sockets",
 				"RHI",
                 "AssetRegistry",
+                "AssetTools",
+                "ToolMenus",
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
@@ -53,6 +55,8 @@ public class MyFirstPlugin : ModuleRules
                 "Sockets",
 				"RHI",
                 "AssetRegistry",
+                "AssetTools",
+                "ToolMenus",
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);
