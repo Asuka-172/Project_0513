@@ -8,7 +8,6 @@
 #include "AssetToolsModule.h"
 #include "IAssetTools.h"
 
-
 class UMPostProcessManager;
 class SPostProcessPanel;
 class ILevelEditor;
@@ -27,31 +26,37 @@ class FMyFirstPluginModule : public IModuleInterface
 {
 public:
 
-	/** IModuleInterface implementation */
-	virtual void StartupModule() override;
-	virtual void ShutdownModule() override;
-	void AddMenuExtension();
-	void OpenToolWindow();
+    virtual void StartupModule() override;
+    virtual void ShutdownModule() override;
+    void AddMenuExtension();
+
+    // 独立的功能窗口
+    void OpenColorPickerWindow();
+    void OpenPostProcessWindow();
+    void OpenNetworkToolsWindow();
+    void OpenPerformanceWindow();
+    void OpenAssetToolsWindow();
 
 private:
-	void OnLevelEditorCreated(TSharedPtr<ILevelEditor> LevelEditor);
-	TSharedPtr<FExtender> MenuExtender;
-	TSharedPtr<SPostProcessPanel> PostProcessPanel;
-	APostProcessVolume* PostProcessVolume = nullptr;
-	UMPostProcessManager* PostProcessManager = nullptr;
-	FDelegateHandle LevelEditorCreatedHandle;
-	TSharedPtr<FUdpChatRoom> ChatRoom;
-	TSharedPtr<SEditableTextBox> ChatInputBox;
-	TSharedPtr<STextBlock> ChatLogText;
-	// 性能图表
-	TSharedPtr<SFpsChart> FpsChart;
-	FTSTicker::FDelegateHandle TickerHandle;
-	TSharedPtr<SPerformancePanel> PerformancePanel;
-	bool Tick(float DeltaTime);
-	//资源检索
-	TSharedPtr<STextBlock> AssetStatsText;
-	TSharedPtr<FAssetInfoCollector> AssetInfoCollector;
-	//右键活动
-	TSharedPtr<FAssetTypeActions_Base> MyAssetActions;
-	TArray<TSharedPtr<FAssetTypeActions_Base>> RegisteredAssetActions;
+    TSharedPtr<FExtender> MenuExtender;
+
+    // 后处理系统
+    TSharedPtr<SPostProcessPanel> PostProcessPanel;
+    APostProcessVolume* PostProcessVolume = nullptr;
+    UMPostProcessManager* PostProcessManager = nullptr;
+
+    // 网络工具
+    TSharedPtr<FUdpChatRoom> ChatRoom;
+
+    // 性能监控
+    FTSTicker::FDelegateHandle TickerHandle;
+    TSharedPtr<SPerformancePanel> PerformancePanel;
+    TSharedPtr<SFpsChart> FpsChart;
+    bool Tick(float DeltaTime);
+
+    // 资产统计
+    TSharedPtr<FAssetInfoCollector> AssetInfoCollector;
+
+    // 右键菜单
+    TArray<TSharedPtr<FAssetTypeActions_Base>> RegisteredAssetActions;
 };

@@ -21,7 +21,6 @@
 #include "AssetTools/FAssetInfoCollector.h"
 #include "AssetTools/FMyAssetActions.h"
 
-
 #define LOCTEXT_NAMESPACE "FMyFirstPluginModule"
 
 // 辅助函数：查找或创建无限范围的 PostProcessVolume
@@ -49,6 +48,8 @@ static APostProcessVolume* FindOrCreatePostProcessVolume()
     return NewVolume;
 }
 
+// ==================== 模块启动与关闭 ====================
+
 void FMyFirstPluginModule::StartupModule()
 {
     UE_LOG(LogTemp, Warning, TEXT("MyFirstPlugin: Module started!"));
@@ -63,8 +64,8 @@ void FMyFirstPluginModule::StartupModule()
         FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
 
     TSharedRef<FMyAssetActions> TextureActions = MakeShareable(new FMyAssetActions(UTexture::StaticClass()));
-    AssetTools.RegisterAssetTypeActions(TextureActions);          // 注册
-    RegisteredAssetActions.Add(TextureActions);                   // 保存共享指针以便卸载
+    AssetTools.RegisterAssetTypeActions(TextureActions);
+    RegisteredAssetActions.Add(TextureActions);
 
     TSharedRef<FMyAssetActions> MaterialActions = MakeShareable(new FMyAssetActions(UMaterial::StaticClass()));
     AssetTools.RegisterAssetTypeActions(MaterialActions);
@@ -93,7 +94,7 @@ void FMyFirstPluginModule::ShutdownModule()
         }
     }
 
-    //移除定时器
+    // 移除定时器
     if (TickerHandle.IsValid())
     {
         FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
@@ -116,7 +117,10 @@ void FMyFirstPluginModule::ShutdownModule()
     }
     RegisteredAssetActions.Empty();
 
+    UE_LOG(LogTemp, Warning, TEXT("MyFirstPlugin: Module shutting down."));
 }
+
+// ==================== 菜单扩展（子菜单结构） ====================
 
 void FMyFirstPluginModule::AddMenuExtension()
 {
@@ -128,42 +132,63 @@ void FMyFirstPluginModule::AddMenuExtension()
         "WindowLayout", EExtensionHook::After, nullptr,
         FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
             {
-                MenuBuilder.AddMenuEntry(
+                // 添加子菜单
+                MenuBuilder.AddSubMenu(
                     FText::FromString("My First Tool"),
-                    FText::FromString("Open My First Tool Window"),
-                    FSlateIcon(),
-                    FUIAction(FExecuteAction::CreateRaw(this, &FMyFirstPluginModule::OpenToolWindow)));
-            }));
+                    FText::FromString("Open a tool window"),
+                    FNewMenuDelegate::CreateLambda([this](FMenuBuilder& SubMenuBuilder)
+                        {
+                            SubMenuBuilder.AddMenuEntry(
+                                FText::FromString("Color Picker"),
+                                FText::FromString("Open color picker and RGB display"),
+                                FSlateIcon(),
+                                FUIAction(FExecuteAction::CreateRaw(this, &FMyFirstPluginModule::OpenColorPickerWindow))
+                            );
+                            SubMenuBuilder.AddMenuEntry(
+                                FText::FromString("Post Process Filters"),
+                                FText::FromString("Adjust grayscale, invert, old film effects"),
+                                FSlateIcon(),
+                                FUIAction(FExecuteAction::CreateRaw(this, &FMyFirstPluginModule::OpenPostProcessWindow))
+                            );
+                            SubMenuBuilder.AddMenuEntry(
+                                FText::FromString("Network Tools"),
+                                FText::FromString("TCP Echo and UDP Chat"),
+                                FSlateIcon(),
+                                FUIAction(FExecuteAction::CreateRaw(this, &FMyFirstPluginModule::OpenNetworkToolsWindow))
+                            );
+                            SubMenuBuilder.AddMenuEntry(
+                                FText::FromString("Performance Monitor"),
+                                FText::FromString("FPS chart, memory, draw calls"),
+                                FSlateIcon(),
+                                FUIAction(FExecuteAction::CreateRaw(this, &FMyFirstPluginModule::OpenPerformanceWindow))
+                            );
+                            SubMenuBuilder.AddMenuEntry(
+                                FText::FromString("Asset Statistics"),
+                                FText::FromString("Refresh and view asset counts by type"),
+                                FSlateIcon(),
+                                FUIAction(FExecuteAction::CreateRaw(this, &FMyFirstPluginModule::OpenAssetToolsWindow))
+                            );
+                        }),
+                    false
+                );
+            })
+    );
 
     LevelEditorModule.GetMenuExtensibilityManager()->AddExtender(Extender);
     MenuExtender = Extender;
 }
 
-void FMyFirstPluginModule::OpenToolWindow()
-{
-    // ----- 初始化后处理系统 -----
-    if (!PostProcessVolume)
-    {
-        PostProcessVolume = FindOrCreatePostProcessVolume();
-    }
-    if (!PostProcessManager)
-    {
-        PostProcessManager = NewObject<UMPostProcessManager>();
-    }
-    if (PostProcessManager && PostProcessVolume)
-    {
-        PostProcessManager->Initialize(PostProcessVolume);
-    }
+// ==================== 独立功能窗口 ====================
 
-    // ----- 构建 UI -----
+void FMyFirstPluginModule::OpenColorPickerWindow()
+{
     TSharedPtr<STextBlock> ColorText;
 
-    TSharedRef<SWidget> WindowContent = SNew(SScrollBox)
-        + SScrollBox::Slot()
+    TSharedRef<SWindow> Window = SNew(SWindow)
+        .Title(FText::FromString("Color Picker"))
+        .ClientSize(FVector2D(500, 200))
         [
             SNew(SVerticalBox)
-
-                // 颜色选择器区域
                 + SVerticalBox::Slot().AutoHeight().Padding(10)
                 [
                     SNew(STextBlock)
@@ -190,230 +215,236 @@ void FMyFirstPluginModule::OpenToolWindow()
                                 }
                             }))
                 ]
+        ];
 
-            // 后处理滤镜区域
-            + SVerticalBox::Slot().AutoHeight().Padding(10)
-                [
-                    SNew(STextBlock)
-                        .Text(FText::FromString("Post Process Filters"))
-                        .Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
-                ]
-                + SVerticalBox::Slot().AutoHeight().Padding(10)
+    FSlateApplication::Get().AddWindow(Window);
+}
+
+void FMyFirstPluginModule::OpenPostProcessWindow()
+{
+    // 确保后处理系统初始化
+    if (!PostProcessVolume)
+        PostProcessVolume = FindOrCreatePostProcessVolume();
+    if (!PostProcessManager)
+        PostProcessManager = NewObject<UMPostProcessManager>();
+    if (PostProcessManager && PostProcessVolume)
+        PostProcessManager->Initialize(PostProcessVolume);
+
+    TSharedRef<SWindow> Window = SNew(SWindow)
+        .Title(FText::FromString("Post Process Filters"))
+        .ClientSize(FVector2D(500, 600))
+        [
+            SNew(SScrollBox)
+                + SScrollBox::Slot()
                 [
                     SAssignNew(PostProcessPanel, SPostProcessPanel, PostProcessManager)
                 ]
+        ];
 
-                // 调试按钮
+    FSlateApplication::Get().AddWindow(Window);
+}
+
+void FMyFirstPluginModule::OpenNetworkToolsWindow()
+{
+    TSharedPtr<STextBlock> ChatLogText;
+    TSharedPtr<SEditableTextBox> ChatInputBox;
+
+    TSharedRef<SWindow> Window = SNew(SWindow)
+        .Title(FText::FromString("Network Tools"))
+        .ClientSize(FVector2D(500, 600))
+        [
+            SNew(SScrollBox)
+                + SScrollBox::Slot()
+                [
+                    SNew(SVerticalBox)
+
+                        // ===== TCP Echo 测试 =====
+                        + SVerticalBox::Slot().AutoHeight().Padding(10)
+                        [
+                            SNew(STextBlock)
+                                .Text(FText::FromString("TCP Echo Test"))
+                                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
+                        ]
+                        + SVerticalBox::Slot().AutoHeight().Padding(10)
+                        [
+                            SNew(SHorizontalBox)
+                                + SHorizontalBox::Slot().AutoWidth()
+                                [
+                                    SNew(SButton)
+                                        .Text(FText::FromString("Start Server"))
+                                        .OnClicked_Lambda([]() -> FReply
+                                            {
+                                                static FTcpEchoServer Server;
+                                                static bool bStarted = false;
+                                                if (!bStarted)
+                                                {
+                                                    if (Server.Start(12345))
+                                                        bStarted = true;
+                                                }
+                                                return FReply::Handled();
+                                            })
+                                ]
+                            + SHorizontalBox::Slot().Padding(10, 0, 0, 0)
+                                [
+                                    SNew(SButton)
+                                        .Text(FText::FromString("Send Echo"))
+                                        .OnClicked_Lambda([]() -> FReply
+                                            {
+                                                static FTcpEchoClient Client;
+                                                static bool bConnected = false;
+                                                if (!bConnected)
+                                                {
+                                                    if (Client.Connect(TEXT("127.0.0.1"), 12345))
+                                                    {
+                                                        bConnected = true;
+                                                        Client.SendMessage(TEXT("Hello, Server!"));
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    Client.SendMessage(TEXT("Hello again!"));
+                                                }
+                                                return FReply::Handled();
+                                            })
+                                ]
+                        ]
+
+                    // ===== UDP 聊天室 =====
+                    + SVerticalBox::Slot().AutoHeight().Padding(10)
+                        [
+                            SNew(STextBlock)
+                                .Text(FText::FromString("UDP Chat Room"))
+                                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
+                        ]
+                        + SVerticalBox::Slot().AutoHeight().Padding(10)
+                        [
+                            SNew(STextBlock)
+                                .Text(FText::FromString("Chat Log:"))
+                        ]
+                        + SVerticalBox::Slot().AutoHeight().Padding(10)
+                        [
+                            SAssignNew(ChatLogText, STextBlock)
+                                .Text(FText::FromString("Chat log will appear here..."))
+                                .AutoWrapText(true)
+                        ]
+                        + SVerticalBox::Slot().AutoHeight().Padding(10)
+                        [
+                            SNew(SHorizontalBox)
+                                + SHorizontalBox::Slot().FillWidth(1.0f)
+                                [
+                                    SAssignNew(ChatInputBox, SEditableTextBox)
+                                        .HintText(FText::FromString("Type a message..."))
+                                ]
+                                + SHorizontalBox::Slot().AutoWidth().Padding(5, 0, 0, 0)
+                                [
+                                    SNew(SButton)
+                                        .Text(FText::FromString("Send"))
+                                        .OnClicked_Lambda([this, ChatInputBox]() -> FReply
+                                            {
+                                                if (ChatRoom.IsValid() && ChatInputBox.IsValid())
+                                                {
+                                                    FString Message = ChatInputBox->GetText().ToString();
+                                                    if (!Message.IsEmpty())
+                                                    {
+                                                        ChatRoom->SendMessage(Message, TEXT("127.0.0.1"), 12400);
+                                                        ChatInputBox->SetText(FText::GetEmpty());
+                                                    }
+                                                }
+                                                return FReply::Handled();
+                                            })
+                                ]
+                        ]
+                    + SVerticalBox::Slot().AutoHeight().Padding(10)
+                        [
+                            SNew(SHorizontalBox)
+                                + SHorizontalBox::Slot().AutoWidth()
+                                [
+                                    SNew(SButton)
+                                        .Text(FText::FromString("Start Chat Room"))
+                                        .OnClicked_Lambda([this]() -> FReply
+                                            {
+                                                if (!ChatRoom.IsValid())
+                                                {
+                                                    ChatRoom = MakeShareable(new FUdpChatRoom);
+                                                    ChatRoom->Initialize(12400);
+                                                }
+                                                return FReply::Handled();
+                                            })
+                                ]
+                            + SHorizontalBox::Slot().Padding(10, 0, 0, 0)
+                                [
+                                    SNew(SButton)
+                                        .Text(FText::FromString("Refresh"))
+                                        .OnClicked_Lambda([this, ChatLogText]() -> FReply
+                                            {
+                                                if (ChatRoom.IsValid() && ChatLogText.IsValid())
+                                                {
+                                                    FString AllMessages;
+                                                    FString Msg, Sender;
+                                                    while (ChatRoom->GetNextMessage(Msg, Sender))
+                                                    {
+                                                        AllMessages += FString::Printf(TEXT("[%s]: %s\n"), *Sender, *Msg);
+                                                    }
+                                                    if (!AllMessages.IsEmpty())
+                                                    {
+                                                        ChatLogText->SetText(FText::FromString(AllMessages));
+                                                    }
+                                                }
+                                                return FReply::Handled();
+                                            })
+                                ]
+                        ]
+                ]
+        ];
+
+    FSlateApplication::Get().AddWindow(Window);
+}
+
+void FMyFirstPluginModule::OpenPerformanceWindow()
+{
+    TSharedRef<SWindow> Window = SNew(SWindow)
+        .Title(FText::FromString("Performance Monitor"))
+        .ClientSize(FVector2D(500, 400))
+        [
+            SNew(SVerticalBox)
                 + SVerticalBox::Slot().AutoHeight().Padding(10)
-                [
-                    SNew(SButton)
-                        .Text(FText::FromString("Print to Log"))
-                        .OnClicked_Lambda([]() -> FReply
-                            {
-                                UE_LOG(LogTemp, Warning, TEXT("Button clicked"));
-                                return FReply::Handled();
-                            })
-                ]
-
-            // ----- 网络测试区 -----
-            + SVerticalBox::Slot()
-                .AutoHeight()
-                .Padding(10)
-                [
-                    SNew(STextBlock)
-                        .Text(FText::FromString("TCP Echo Test"))
-                        .Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
-                ]
-
-                + SVerticalBox::Slot()
-                .AutoHeight()
-                .Padding(10)
-                [
-                    SNew(SHorizontalBox)
-                        + SHorizontalBox::Slot()
-                        .AutoWidth()
-                        [
-                            SNew(SButton)
-                                .Text(FText::FromString("Start Server"))
-                                .OnClicked_Lambda([]() -> FReply
-                                    {
-                                        static FTcpEchoServer Server; // 保持生命周期
-                                        static bool bStarted = false;
-                                        if (!bStarted)
-                                        {
-                                            if (Server.Start(12345))
-                                                bStarted = true;
-                                        }
-                                        return FReply::Handled();
-                                    })
-                        ]
-                    + SHorizontalBox::Slot()
-                        .Padding(10, 0, 0, 0)
-                        [
-                            SNew(SButton)
-                                .Text(FText::FromString("Send Echo"))
-                                .OnClicked_Lambda([]() -> FReply
-                                    {
-                                        static FTcpEchoClient Client;
-                                        static bool bConnected = false;
-                                        if (!bConnected)
-                                        {
-                                            if (Client.Connect(TEXT("127.0.0.1"), 12346))
-                                            {
-                                                bConnected = true;
-                                                Client.SendMessage(TEXT("Hello, Server!"));
-                                            }
-                                        }
-                                        else
-                                        {
-                                            Client.SendMessage(TEXT("Hello again!"));
-                                        }
-                                        return FReply::Handled();
-                                    })
-                        ]
-                ]
-
-            // ----- UDP 聊天区域 -----
-            + SVerticalBox::Slot()
-                .AutoHeight()
-                .Padding(10)
-                [
-                    SNew(STextBlock)
-                        .Text(FText::FromString("UDP Chat Room"))
-                        .Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
-                ]
-
-                // 聊天消息显示区
-                + SVerticalBox::Slot()
-                .AutoHeight()
-                .Padding(10)
-                [
-                    SAssignNew(ChatLogText, STextBlock)
-                        .Text(FText::FromString("Chat log will appear here..."))
-                        .AutoWrapText(true)
-                ]
-
-                // 输入框 + 发送按钮
-                + SVerticalBox::Slot()
-                .AutoHeight()
-                .Padding(10)
-                [
-                    SNew(SHorizontalBox)
-                        + SHorizontalBox::Slot()
-                        .FillWidth(1.0f)
-                        [
-                            SAssignNew(ChatInputBox, SEditableTextBox)
-                                .HintText(FText::FromString("Type a message..."))
-                        ]
-                        + SHorizontalBox::Slot()
-                        .AutoWidth()
-                        .Padding(5, 0, 0, 0)
-                        [
-                            SNew(SButton)
-                                .Text(FText::FromString("Send"))
-                                .OnClicked_Lambda([this]() -> FReply
-                                    {
-                                        if (ChatRoom.IsValid() && ChatInputBox.IsValid())
-                                        {
-                                            FString Message = ChatInputBox->GetText().ToString();
-                                            if (!Message.IsEmpty())
-                                            {
-                                                // 发送给自己（本地回环），演示用
-                                                ChatRoom->SendMessage(Message, TEXT("127.0.0.1"), 12400);
-                                                ChatInputBox->SetText(FText::GetEmpty());
-                                            }
-                                        }
-                                        return FReply::Handled();
-                                    })
-                        ]
-                ]
-
-            // 启动聊天室按钮
-            + SVerticalBox::Slot()
-                .AutoHeight()
-                .Padding(10)
-                [
-                    SNew(SButton)
-                        .Text(FText::FromString("Start Chat Room"))
-                        .OnClicked_Lambda([this]() -> FReply
-                            {
-                                static bool bChatStarted = false;
-                                if (!bChatStarted)
-                                {
-                                    ChatRoom = MakeShareable(new FUdpChatRoom);
-                                    if (ChatRoom->Initialize(12400))  // 使用端口12346
-                                    {
-                                        bChatStarted = true;
-                                        // 设置定时器轮询消息队列（因Slate窗口不在Tick中，我们用Timer或手动刷新）
-                                    }
-                                }
-                                return FReply::Handled();
-                            })
-                ]
-
-            // 刷新按钮（手动拉取新消息）
-            + SVerticalBox::Slot()
-                .AutoHeight()
-                .Padding(10)
-                [
-                    SNew(SButton)
-                        .Text(FText::FromString("Refresh"))
-                        .OnClicked_Lambda([this]() -> FReply
-                            {
-                                if (ChatRoom.IsValid() && ChatLogText.IsValid())
-                                {
-                                    FString AllMessages;
-                                    FString Msg, Sender;
-                                    while (ChatRoom->GetNextMessage(Msg, Sender))
-                                    {
-                                        AllMessages += FString::Printf(TEXT("[%s]: %s\n"), *Sender, *Msg);
-                                    }
-                                    if (!AllMessages.IsEmpty())
-                                    {
-                                        ChatLogText->SetText(FText::FromString(AllMessages));
-                                    }
-                                }
-                                return FReply::Handled();
-                            })
-                ]
-
-            // ----- 性能监控面板 -----
-            + SVerticalBox::Slot()
-                .AutoHeight()
-                .Padding(10)
                 [
                     SNew(STextBlock)
                         .Text(FText::FromString("Performance Monitor"))
                         .Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
                 ]
-                + SVerticalBox::Slot()
-                .AutoHeight()
-                .Padding(10)
+                + SVerticalBox::Slot().AutoHeight().Padding(10)
                 [
                     SAssignNew(PerformancePanel, SPerformancePanel)
                 ]
+        ];
 
-            // ----- 资源检索 区域 -----
-            + SVerticalBox::Slot()
-                .AutoHeight()
-                .Padding(10)
+    FSlateApplication::Get().AddWindow(Window);
+}
+
+void FMyFirstPluginModule::OpenAssetToolsWindow()
+{
+    TSharedPtr<STextBlock> AssetStatsText;
+
+    TSharedRef<SWindow> Window = SNew(SWindow)
+        .Title(FText::FromString("Asset Statistics"))
+        .ClientSize(FVector2D(500, 300))
+        [
+            SNew(SVerticalBox)
+                + SVerticalBox::Slot().AutoHeight().Padding(10)
                 [
                     SNew(STextBlock)
                         .Text(FText::FromString("Asset Statistics"))
                         .Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
                 ]
-
-                + SVerticalBox::Slot()
-                .AutoHeight()
-                .Padding(10)
+                + SVerticalBox::Slot().AutoHeight().Padding(10)
                 [
                     SNew(SHorizontalBox)
-                        + SHorizontalBox::Slot()
-                        .AutoWidth()
+                        + SHorizontalBox::Slot().AutoWidth()
                         [
                             SNew(SButton)
                                 .Text(FText::FromString("Refresh Stats"))
-                                .OnClicked_Lambda([this]() -> FReply
+                                .OnClicked_Lambda([this, AssetStatsText]() -> FReply
                                     {
                                         if (!AssetInfoCollector.IsValid())
                                         {
@@ -441,34 +472,26 @@ void FMyFirstPluginModule::OpenToolWindow()
                                     })
                         ]
                 ]
-
-            + SVerticalBox::Slot()
-                .AutoHeight()
-                .Padding(10)
+            + SVerticalBox::Slot().AutoHeight().Padding(10)
                 [
                     SAssignNew(AssetStatsText, STextBlock)
                         .Text(FText::FromString("Click Refresh to load statistics..."))
                         .AutoWrapText(true)
                 ]
-
         ];
 
-    TSharedRef<SWindow> ToolWindow = SNew(SWindow)
-        .Title(FText::FromString("My First Tool"))
-        .ClientSize(FVector2D(600, 600))
-        [WindowContent];
-
-    FSlateApplication::Get().AddWindow(ToolWindow);
+    FSlateApplication::Get().AddWindow(Window);
 }
 
-//实现Tick函数
+// ==================== Tick ====================
+
 bool FMyFirstPluginModule::Tick(float DeltaTime)
 {
     if (PerformancePanel.IsValid())
     {
         PerformancePanel->UpdateStats(DeltaTime);
     }
-    return true; // 继续执行
+    return true;
 }
 
 IMPLEMENT_MODULE(FMyFirstPluginModule, MyFirstPlugin)
