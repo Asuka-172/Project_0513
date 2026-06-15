@@ -20,6 +20,7 @@
 #include "SFpsChart/SPerformancePanel.h"
 #include "AssetTools/FAssetInfoCollector.h"
 #include "AssetTools/FMyAssetActions.h"
+#include "AssetTools/SBatchAssetTool.h"
 
 #define LOCTEXT_NAMESPACE "FMyFirstPluginModule"
 
@@ -167,6 +168,12 @@ void FMyFirstPluginModule::AddMenuExtension()
                                 FText::FromString("Refresh and view asset counts by type"),
                                 FSlateIcon(),
                                 FUIAction(FExecuteAction::CreateRaw(this, &FMyFirstPluginModule::OpenAssetToolsWindow))
+                            );
+                            SubMenuBuilder.AddMenuEntry(
+                                FText::FromString("Batch Asset Tool"),
+                                FText::FromString("Open batch asset processing tool"),
+                                FSlateIcon(),
+                                FUIAction(FExecuteAction::CreateRaw(this, &FMyFirstPluginModule::OpenBatchAssetToolWindow))
                             );
                         }),
                     false
@@ -478,6 +485,18 @@ void FMyFirstPluginModule::OpenAssetToolsWindow()
                         .Text(FText::FromString("Click Refresh to load statistics..."))
                         .AutoWrapText(true)
                 ]
+        ];
+
+    FSlateApplication::Get().AddWindow(Window);
+}
+
+void FMyFirstPluginModule::OpenBatchAssetToolWindow()
+{
+    TSharedRef<SWindow> Window = SNew(SWindow)
+        .Title(FText::FromString("Batch Asset Tool"))
+        .ClientSize(FVector2D(600, 700))
+        [
+            SNew(SBatchAssetTool)
         ];
 
     FSlateApplication::Get().AddWindow(Window);

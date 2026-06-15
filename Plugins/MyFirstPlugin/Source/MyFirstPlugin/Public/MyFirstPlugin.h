@@ -36,6 +36,7 @@ public:
     void OpenNetworkToolsWindow();
     void OpenPerformanceWindow();
     void OpenAssetToolsWindow();
+    void OpenBatchAssetToolWindow();
 
 private:
     TSharedPtr<FExtender> MenuExtender;
