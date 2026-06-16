@@ -1,4 +1,5 @@
 #include "SBatchAssetTool.h"
+#include "ScopedTransaction.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -9,6 +10,7 @@
 #include "Materials/Material.h"
 #include "Engine/StaticMesh.h"
 #include "FileHelpers.h"
+#include "Engine/Texture2D.h"
 
 void SBatchAssetTool::Construct(const FArguments& InArgs)
 {
@@ -318,7 +320,7 @@ void SBatchAssetTool::Construct(const FArguments& InArgs)
                                         .Padding(5, 0, 0, 0)
                                         [
                                             SAssignNew(MipGenComboBox, SComboBox<TSharedPtr<FString>>)
-                                                .OptionsSource(&CompressionOptions) // 共用数据源（此处可另建独立数据源）
+                                                .OptionsSource(&CompressionOptions)
                                                 .OnGenerateWidget_Lambda([](TSharedPtr<FString> Item)
                                                     {
                                                         return SNew(STextBlock).Text(FText::FromString(*Item));
@@ -347,7 +349,7 @@ void SBatchAssetTool::Construct(const FArguments& InArgs)
                                         .Padding(5, 0, 0, 0)
                                         [
                                             SAssignNew(SRGBCheckBox, SCheckBox)
-                                                .IsChecked(ECheckBoxState::Checked) // 默认开启
+                                                .IsChecked(ECheckBoxState::Checked)
                                         ]
                                 ]
                         ]
@@ -373,7 +375,7 @@ void SBatchAssetTool::Construct(const FArguments& InArgs)
                                 ]
                         ]
 
-                    // ===== 目标目录（复制模式）/ 重命名提示（重命名模式） =====
+                    // ===== 目标目录（复制模式） =====
                     + SVerticalBox::Slot()
                         .AutoHeight()
                         .Padding(10)
@@ -549,7 +551,6 @@ void SBatchAssetTool::Construct(const FArguments& InArgs)
 void SBatchAssetTool::OnOperationChanged(EBatchOperation NewOperation)
 {
     CurrentOperation = NewOperation;
-    // 切换到纹理压缩模式时，强制只勾选纹理类型
     if (NewOperation == EBatchOperation::CompressTextures)
     {
         if (CheckTextures.IsValid()) CheckTextures->SetIsChecked(ECheckBoxState::Checked);
@@ -571,6 +572,7 @@ FText SBatchAssetTool::GetOperationText() const
     {
     case EBatchOperation::Copy: return FText::FromString("Current: Copy");
     case EBatchOperation::Rename: return FText::FromString("Current: Rename");
+    case EBatchOperation::CompressTextures: return FText::FromString("Current: Compress");
     default: return FText::FromString("Unknown");
     }
 }
@@ -589,19 +591,14 @@ FText SBatchAssetTool::GetStrategyText() const
 FText SBatchAssetTool::GetCompressionText() const
 {
     if (SelectedCompressionIndex >= 0 && SelectedCompressionIndex < CompressionOptions.Num())
-    {
         return FText::FromString(*CompressionOptions[SelectedCompressionIndex]);
-    }
     return FText::FromString("Select...");
 }
 
 FText SBatchAssetTool::GetMipGenText() const
 {
-    // 简化，实际应使用独立的 MipGenOptions
     if (SelectedMipGenIndex >= 0 && SelectedMipGenIndex < CompressionOptions.Num())
-    {
         return FText::FromString(*CompressionOptions[SelectedMipGenIndex]);
-    }
     return FText::FromString("Select...");
 }
 
@@ -612,13 +609,11 @@ void SBatchAssetTool::OnCompressionSelectionChanged(TSharedPtr<FString> NewSelec
     if (NewSelection.IsValid())
     {
         for (int32 i = 0; i < CompressionOptions.Num(); i++)
-        {
             if (CompressionOptions[i] == NewSelection)
             {
                 SelectedCompressionIndex = i;
                 break;
             }
-        }
     }
 }
 
@@ -627,13 +622,11 @@ void SBatchAssetTool::OnMipGenSelectionChanged(TSharedPtr<FString> NewSelection,
     if (NewSelection.IsValid())
     {
         for (int32 i = 0; i < CompressionOptions.Num(); i++)
-        {
             if (CompressionOptions[i] == NewSelection)
             {
                 SelectedMipGenIndex = i;
                 break;
             }
-        }
     }
 }
 
@@ -645,35 +638,23 @@ FString SBatchAssetTool::GenerateTargetName(const FString& SourceName, int32 Ind
     {
     case EBatchOperation::Copy:
         return SourceName + TEXT("_Copy");
-
     case EBatchOperation::Rename:
         switch (CurrentStrategy)
         {
         case ERenameStrategy::AddPrefix:
-        {
-            FString Prefix = PrefixInput.IsValid() ? PrefixInput->GetText().ToString() : TEXT("T_");
-            return Prefix + SourceName;
-        }
+            return (PrefixInput.IsValid() ? PrefixInput->GetText().ToString() : TEXT("T_")) + SourceName;
         case ERenameStrategy::AddSuffix:
-        {
-            FString Suffix = SuffixInput.IsValid() ? SuffixInput->GetText().ToString() : TEXT("_D");
-            return SourceName + Suffix;
-        }
+            return SourceName + (SuffixInput.IsValid() ? SuffixInput->GetText().ToString() : TEXT("_D"));
         case ERenameStrategy::SequentialNumber:
         {
             int32 StartNum = StartNumberInput.IsValid() ? StartNumberInput->GetValue() : 1;
             int32 Digits = NumberDigitsInput.IsValid() ? NumberDigitsInput->GetValue() : 3;
-            int32 Number = StartNum + Index;
-            return FString::Printf(TEXT("%0*d"), Digits, Number);
+            return FString::Printf(TEXT("%0*d"), Digits, StartNum + Index);
         }
-        default:
-            return SourceName;
+        default: return SourceName;
         }
-
     case EBatchOperation::CompressTextures:
-        // 压缩模式下 TargetName 无意义，保持原名即可
         return SourceName;
-
     default:
         return SourceName;
     }
@@ -691,31 +672,173 @@ FReply SBatchAssetTool::OnExecuteClicked()
 {
     if (bIsExecuting || PreviewItems.Num() == 0) return FReply::Handled();
 
-    bIsExecuting = true;
-    ProgressBar->SetPercent(0.0f);
+    PendingOperation = CurrentOperation;
+    AsyncItems = PreviewItems;
+    StartAsyncExecution();
 
-    switch (CurrentOperation)
-    {
-    case EBatchOperation::Copy:
-        ExecuteBatchCopy();
-        break;
-    case EBatchOperation::Rename:
-        ExecuteBatchRename();
-        break;
-    case EBatchOperation::CompressTextures:
-        ExecuteTextureCompression();
-        break;
-    }
-
-    bIsExecuting = false;
     return FReply::Handled();
 }
 
 FReply SBatchAssetTool::OnCancelClicked()
 {
-    bIsExecuting = false;
-    ProgressText->SetText(FText::FromString("Cancelled"));
+    if (bIsAsyncExecuting)
+    {
+        FTSTicker::GetCoreTicker().RemoveTicker(AsyncTickerHandle);
+        bIsAsyncExecuting = false;
+        ProgressText->SetText(FText::FromString("Cancelled"));
+    }
     return FReply::Handled();
+}
+
+// ==================== 异步执行 ====================
+
+void SBatchAssetTool::StartAsyncExecution()
+{
+    bIsAsyncExecuting = true;
+    CurrentAsyncIndex = 0;
+    SuccessCount = SkipCount = FailCount = 0;
+
+    ProgressBar->SetPercent(0.0f);
+    ProgressText->SetText(FText::FromString("Starting..."));
+
+    AsyncTickerHandle = FTSTicker::GetCoreTicker().AddTicker(
+        FTickerDelegate::CreateLambda([this](float DeltaTime) -> bool
+            {
+                return ProcessNextAsset(DeltaTime);
+            }), 0.0f);
+}
+
+bool SBatchAssetTool::ProcessNextAsset(float DeltaTime)
+{
+    if (CurrentAsyncIndex >= AsyncItems.Num())
+    {
+        FinishAsyncExecution();
+        return false;
+    }
+
+    const TSharedPtr<FAssetPreviewItem>& Item = AsyncItems[CurrentAsyncIndex];
+    bool bSuccess = ProcessSingleAsset(Item, PendingOperation);
+    if (bSuccess) SuccessCount++;
+    else FailCount++;
+
+    CurrentAsyncIndex++;
+
+    float Progress = (float)CurrentAsyncIndex / (float)AsyncItems.Num();
+    ProgressBar->SetPercent(Progress);
+    ProgressText->SetText(FText::FromString(
+        FString::Printf(TEXT("Processing: %d/%d"), CurrentAsyncIndex, AsyncItems.Num())));
+
+    return true;
+}
+
+void SBatchAssetTool::FinishAsyncExecution()
+{
+    bIsAsyncExecuting = false;
+
+    FString Report = FString::Printf(
+        TEXT("Batch operation completed. Success: %d, Failed: %d, Skipped: %d"),
+        SuccessCount, FailCount, SkipCount);
+    ProgressText->SetText(FText::FromString(Report));
+    UE_LOG(LogTemp, Warning, TEXT("%s"), *Report);
+}
+
+// ==================== 单个资产处理（带撤销） ====================
+
+bool SBatchAssetTool::ProcessSingleAsset(const TSharedPtr<FAssetPreviewItem>& Item, EBatchOperation Operation)
+{
+    if (!Item.IsValid()) return false;
+
+    UObject* Asset = Item->AssetData.GetAsset();
+    if (!Asset)
+    {
+        LogOperationResult(Item->SourceName, "Load", false, "Failed to load asset");
+        return false;
+    }
+
+    // 开启撤销事务
+    FScopedTransaction Transaction(FText::FromString("Batch Asset Operation"));
+
+    switch (Operation)
+    {
+    case EBatchOperation::Copy:
+    {
+        FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+        IAssetTools& AssetTools = AssetToolsModule.Get();
+        FString TargetPath = TargetPathInput.IsValid() ? TargetPathInput->GetText().ToString() : TEXT("/Game/Copied");
+        if (TargetPath.IsEmpty()) TargetPath = TEXT("/Game/Copied");
+
+        FString NewName = Item->TargetName;
+        FString FullPath = TargetPath / NewName;
+        if (StaticLoadObject(UObject::StaticClass(), nullptr, *FullPath))
+        {
+            LogOperationResult(Item->SourceName, "Copy", false, "Asset with same name already exists");
+            SkipCount++;
+            return false;
+        }
+
+        Asset->Modify();
+        AssetTools.DuplicateAsset(NewName, TargetPath, Asset);
+        LogOperationResult(Item->SourceName, "Copy", true);
+        return true;
+    }
+    case EBatchOperation::Rename:
+    {
+        FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+        IAssetTools& AssetTools = AssetToolsModule.Get();
+
+        TArray<FAssetRenameData> RenameArray;
+        FAssetRenameData RenameData(Asset, Asset->GetOutermost()->GetName(), Item->TargetName);
+        RenameArray.Add(RenameData);
+
+        Asset->Modify();
+        if (AssetTools.RenameAssets(RenameArray))
+        {
+            LogOperationResult(Item->SourceName, "Rename", true);
+            return true;
+        }
+        else
+        {
+            LogOperationResult(Item->SourceName, "Rename", false, "RenameAssets failed");
+            return false;
+        }
+    }
+    case EBatchOperation::CompressTextures:
+    {
+        UTexture2D* Texture = Cast<UTexture2D>(Asset);
+        if (!Texture)
+        {
+            LogOperationResult(Item->SourceName, "Compress", false, "Not a texture");
+            SkipCount++;
+            return false;
+        }
+
+        Texture->Modify();
+
+        TextureCompressionSettings CompressionSetting;
+        switch (SelectedCompressionIndex)
+        {
+        case 0: CompressionSetting = TC_Default; break;
+        case 1: CompressionSetting = TC_Default; break;
+        case 2: CompressionSetting = TC_Normalmap; break;
+        case 3: CompressionSetting = TC_Default; break;
+        default: CompressionSetting = TC_Default; break;
+        }
+        Texture->CompressionSettings = CompressionSetting;
+
+        TextureMipGenSettings MipSetting = TMGS_FromTextureGroup;
+        if (SelectedMipGenIndex == 1) MipSetting = TMGS_NoMipmaps;
+        else if (SelectedMipGenIndex >= 2 && SelectedMipGenIndex <= 6)
+            MipSetting = static_cast<TextureMipGenSettings>(SelectedMipGenIndex + 2);
+        Texture->MipGenSettings = MipSetting;
+
+        Texture->SRGB = SRGBCheckBox.IsValid() && SRGBCheckBox->IsChecked();
+        Texture->MarkPackageDirty();
+        LogOperationResult(Item->SourceName, "Compress", true);
+        return true;
+    }
+    default:
+        return false;
+    }
 }
 
 // ==================== 预览逻辑 ====================
@@ -770,132 +893,17 @@ bool SBatchAssetTool::IsAssetTypeSelected(const FAssetData& Asset) const
     return false;
 }
 
-// ==================== 批量复制 ====================
+// ==================== 日志 ====================
 
-void SBatchAssetTool::ExecuteBatchCopy()
+void SBatchAssetTool::LogOperationResult(const FString& AssetName, const FString& Action, bool bSuccess, const FString& ErrorMsg)
 {
-    FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
-    IAssetTools& AssetTools = AssetToolsModule.Get();
-
-    FString TargetPath = TargetPathInput.IsValid() ? TargetPathInput->GetText().ToString() : TEXT("/Game/TargetFolder");
-    if (TargetPath.IsEmpty()) TargetPath = TEXT("/Game/TargetFolder");
-
-    int32 Total = PreviewItems.Num();
-    int32 Processed = 0;
-
-    for (const TSharedPtr<FAssetPreviewItem>& Item : PreviewItems)
+    if (bSuccess)
     {
-        if (!Item.IsValid()) continue;
-        UObject* AssetObject = Item->AssetData.GetAsset();
-        if (!AssetObject) continue;
-
-        FString NewName = Item->TargetName;
-        AssetTools.DuplicateAsset(NewName, TargetPath, AssetObject);
-
-        Processed++;
-        ProgressBar->SetPercent((float)Processed / Total);
-        ProgressText->SetText(FText::FromString(
-            FString::Printf(TEXT("Copying: %d/%d"), Processed, Total)));
+        UE_LOG(LogTemp, Log, TEXT("[BatchTool] %s: %s succeeded."), *AssetName, *Action);
     }
-
-    ProgressText->SetText(FText::FromString(
-        FString::Printf(TEXT("Copy completed! %d assets processed."), Processed)));
-}
-
-// ==================== 批量重命名 ====================
-
-void SBatchAssetTool::ExecuteBatchRename()
-{
-    FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
-    IAssetTools& AssetTools = AssetToolsModule.Get();
-
-    TArray<FAssetRenameData> RenameArray;
-    for (const TSharedPtr<FAssetPreviewItem>& Item : PreviewItems)
+    else
     {
-        if (!Item.IsValid()) continue;
-        UObject* AssetObject = Item->AssetData.GetAsset();
-        if (!AssetObject) continue;
-
-        // 使用 FAssetRenameData 构造函数：Asset, PackagePath, NewName
-        FAssetRenameData RenameData(AssetObject,
-            Item->AssetData.PackagePath.ToString(),
-            Item->TargetName);
-        RenameArray.Add(RenameData);
+        UE_LOG(LogTemp, Warning, TEXT("[BatchTool] %s: %s failed. %s"),
+            *AssetName, *Action, ErrorMsg.IsEmpty() ? TEXT("") : *ErrorMsg);
     }
-
-    if (RenameArray.Num() > 0)
-    {
-        AssetTools.RenameAssets(RenameArray);
-    }
-
-    int32 Total = RenameArray.Num();
-    ProgressBar->SetPercent(1.0f);
-    ProgressText->SetText(FText::FromString(
-        FString::Printf(TEXT("Rename completed! %d assets processed."), Total)));
-}
-
-// ==================== 纹理压缩 ====================新增功能
-void SBatchAssetTool::ExecuteTextureCompression()
-{
-    FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
-    IAssetTools& AssetTools = AssetToolsModule.Get();
-
-    // 根据选择确定压缩枚举值
-    TextureCompressionSettings CompressionSetting;
-    switch (SelectedCompressionIndex)
-    {
-    case 0: CompressionSetting = TC_Default; break;      // BC1
-    case 1: CompressionSetting = TC_Default; break;      // BC3 通常也用 TC_Default
-    case 2: CompressionSetting = TC_Normalmap; break;    // BC5 用于法线
-    case 3: CompressionSetting = TC_Default; break;      // BC7 高质量
-    default: CompressionSetting = TC_Default; break;
-    }
-
-    TextureMipGenSettings MipSetting;
-    switch (SelectedMipGenIndex)
-    {
-    case 0: MipSetting = TMGS_FromTextureGroup; break;
-    case 1: MipSetting = TMGS_NoMipmaps; break;
-    case 2: MipSetting = TMGS_Blur1; break;
-    case 3: MipSetting = TMGS_Blur2; break;
-    case 4: MipSetting = TMGS_Blur3; break;
-    case 5: MipSetting = TMGS_Blur4; break;
-    case 6: MipSetting = TMGS_Blur5; break;
-    default: MipSetting = TMGS_FromTextureGroup; break;
-    }
-
-    bool bSRGB = SRGBCheckBox.IsValid() && SRGBCheckBox->IsChecked();
-
-    int32 Total = PreviewItems.Num();
-    int32 Processed = 0;
-    TArray<UPackage*> ModifiedPackages;
-
-    for (const TSharedPtr<FAssetPreviewItem>& Item : PreviewItems)
-    {
-        if (!Item.IsValid()) continue;
-
-        UTexture2D* Texture = Cast<UTexture2D>(Item->AssetData.GetAsset());
-        if (!Texture) continue;
-
-        Texture->CompressionSettings = CompressionSetting;
-        Texture->MipGenSettings = MipSetting;
-        Texture->SRGB = bSRGB;
-
-        Texture->MarkPackageDirty();
-        ModifiedPackages.Add(Texture->GetOutermost());
-
-        Processed++;
-        ProgressBar->SetPercent((float)Processed / Total);
-        ProgressText->SetText(FText::FromString(
-            FString::Printf(TEXT("Processing: %d/%d"), Processed, Total)));
-    }
-
-    // 保存修改过的包
-    if (ModifiedPackages.Num() > 0)
-    {
-        FEditorFileUtils::PromptForCheckoutAndSave(ModifiedPackages, true, false);
-    }
-
-    ProgressText->SetText(FText::FromString(
-        FString::Printf(TEXT("Compression updated! %d textures processed."), Processed)));
 }

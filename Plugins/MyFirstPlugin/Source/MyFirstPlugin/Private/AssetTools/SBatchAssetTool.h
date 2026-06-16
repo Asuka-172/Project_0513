@@ -121,4 +121,31 @@ private:
     // 压缩选择回调
     void OnCompressionSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
     void OnMipGenSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
+
+    // ===== 异步与撤销支持 =====
+    bool bIsAsyncExecuting = false;
+    int32 CurrentAsyncIndex = 0;
+    FTSTicker::FDelegateHandle AsyncTickerHandle;
+    TArray<TSharedPtr<FAssetPreviewItem>> AsyncItems; // 执行时的快照
+    EBatchOperation PendingOperation; // 异步执行时记录当前操作
+
+    // 操作统计
+    int32 SuccessCount = 0;
+    int32 SkipCount = 0;
+    int32 FailCount = 0;
+
+    // 异步执行相关
+    void StartAsyncExecution();
+    bool ProcessNextAsset(float DeltaTime);
+    void FinishAsyncExecution();
+
+    // 处理单个资产（同步版本，供分帧调用）
+    bool ProcessSingleAsset(const TSharedPtr<FAssetPreviewItem>& Item, EBatchOperation Operation);
+
+    // 撤销支持
+    void BeginUndoTransaction();
+    void EndUndoTransaction();
+
+    // 日志辅助
+    void LogOperationResult(const FString& AssetName, const FString& Action, bool bSuccess, const FString& ErrorMsg = TEXT(""));
 };
