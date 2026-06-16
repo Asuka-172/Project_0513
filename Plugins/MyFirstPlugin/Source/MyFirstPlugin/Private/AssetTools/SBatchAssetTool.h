@@ -11,12 +11,14 @@
 #include "Widgets/Notifications/SProgressBar.h"
 #include "Widgets/Input/SComboBox.h"
 #include "AssetRegistry/AssetData.h"
+#include "Engine/TextureDefines.h"
 
 // 操作类型
 enum class EBatchOperation : uint8
 {
     Copy,
-    Rename
+    Rename,
+    CompressTextures
 };
 
 // 重命名策略
@@ -58,6 +60,14 @@ private:
     TSharedPtr<SSpinBox<int32>> StartNumberInput;
     TSharedPtr<SSpinBox<int32>> NumberDigitsInput;
 
+    // ===== 纹理压缩参数 =====
+    TArray<TSharedPtr<FString>> CompressionOptions;   // 下拉列表数据源
+    TSharedPtr<SComboBox<TSharedPtr<FString>>> CompressionComboBox; // 压缩格式下拉
+    TSharedPtr<SComboBox<TSharedPtr<FString>>> MipGenComboBox;      // Mip 生成下拉
+    TSharedPtr<SCheckBox> SRGBCheckBox;              // SRGB 开关
+    int32 SelectedCompressionIndex = 0;               // 当前选中压缩格式索引
+    int32 SelectedMipGenIndex = 0;                    // 当前选中 Mip 生成索引
+
     // ===== 资产类型筛选 =====
     TSharedPtr<SCheckBox> CheckTextures;
     TSharedPtr<SCheckBox> CheckMaterials;
@@ -94,6 +104,8 @@ private:
     void ExecuteBatchCopy();
     // 执行批量重命名
     void ExecuteBatchRename();
+	// 执行批量纹理压缩
+    void ExecuteTextureCompression();
 
     // 判断资产类型是否被选中
     bool IsAssetTypeSelected(const FAssetData& Asset) const;
@@ -101,4 +113,12 @@ private:
     // 获取操作模式文本
     FText GetOperationText() const;
     FText GetStrategyText() const;
+
+    // 获取当前压缩设置文本
+    FText GetCompressionText() const;
+    FText GetMipGenText() const;
+
+    // 压缩选择回调
+    void OnCompressionSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
+    void OnMipGenSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
 };

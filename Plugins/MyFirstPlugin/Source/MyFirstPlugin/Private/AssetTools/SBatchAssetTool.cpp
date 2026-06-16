@@ -8,9 +8,16 @@
 #include "Engine/Texture.h"
 #include "Materials/Material.h"
 #include "Engine/StaticMesh.h"
+#include "FileHelpers.h"
 
 void SBatchAssetTool::Construct(const FArguments& InArgs)
 {
+    // 初始化压缩格式选项
+    CompressionOptions.Add(MakeShareable(new FString(TEXT("BC1 (DXT1)"))));
+    CompressionOptions.Add(MakeShareable(new FString(TEXT("BC3 (DXT5)"))));
+    CompressionOptions.Add(MakeShareable(new FString(TEXT("BC5 (Normal Map)"))));
+    CompressionOptions.Add(MakeShareable(new FString(TEXT("BC7"))));
+
     ChildSlot
         [
             SNew(SScrollBox)
@@ -61,6 +68,18 @@ void SBatchAssetTool::Construct(const FArguments& InArgs)
                                         .OnClicked_Lambda([this]() -> FReply
                                             {
                                                 OnOperationChanged(EBatchOperation::Rename);
+                                                return FReply::Handled();
+                                            })
+                                ]
+                            + SHorizontalBox::Slot()
+                                .AutoWidth()
+                                .Padding(5, 0, 0, 0)
+                                [
+                                    SNew(SButton)
+                                        .Text(FText::FromString("Compress"))
+                                        .OnClicked_Lambda([this]() -> FReply
+                                            {
+                                                OnOperationChanged(EBatchOperation::CompressTextures);
                                                 return FReply::Handled();
                                             })
                                 ]
@@ -232,6 +251,104 @@ void SBatchAssetTool::Construct(const FArguments& InArgs)
                                         .MinValue(1)
                                         .MaxValue(6)
                                         .Value(3)
+                                ]
+                        ]
+
+                    // ===== 纹理压缩设置区域（仅在纹理压缩模式下显示） =====
+                    + SVerticalBox::Slot()
+                        .AutoHeight()
+                        .Padding(10)
+                        [
+                            SNew(SVerticalBox)
+                                .Visibility_Lambda([this]()
+                                    {
+                                        return CurrentOperation == EBatchOperation::CompressTextures
+                                            ? EVisibility::Visible : EVisibility::Collapsed;
+                                    })
+                                + SVerticalBox::Slot()
+                                .AutoHeight()
+                                [
+                                    SNew(STextBlock)
+                                        .Text(FText::FromString("Texture Compression Settings"))
+                                        .Font(FCoreStyle::GetDefaultFontStyle("Bold", 12))
+                                ]
+                                // 压缩格式下拉
+                                + SVerticalBox::Slot()
+                                .AutoHeight()
+                                .Padding(0, 5)
+                                [
+                                    SNew(SHorizontalBox)
+                                        + SHorizontalBox::Slot()
+                                        .AutoWidth()
+                                        .VAlign(VAlign_Center)
+                                        [
+                                            SNew(STextBlock).Text(FText::FromString("Compression:"))
+                                        ]
+                                        + SHorizontalBox::Slot()
+                                        .FillWidth(1.0f)
+                                        .Padding(5, 0, 0, 0)
+                                        [
+                                            SAssignNew(CompressionComboBox, SComboBox<TSharedPtr<FString>>)
+                                                .OptionsSource(&CompressionOptions)
+                                                .OnGenerateWidget_Lambda([](TSharedPtr<FString> Item)
+                                                    {
+                                                        return SNew(STextBlock).Text(FText::FromString(*Item));
+                                                    })
+                                                .OnSelectionChanged(this, &SBatchAssetTool::OnCompressionSelectionChanged)
+                                                [
+                                                    SNew(STextBlock)
+                                                        .Text_Lambda([this]() { return GetCompressionText(); })
+                                                ]
+                                        ]
+                                ]
+                            // Mip 生成下拉
+                            + SVerticalBox::Slot()
+                                .AutoHeight()
+                                .Padding(0, 5)
+                                [
+                                    SNew(SHorizontalBox)
+                                        + SHorizontalBox::Slot()
+                                        .AutoWidth()
+                                        .VAlign(VAlign_Center)
+                                        [
+                                            SNew(STextBlock).Text(FText::FromString("Mip Gen:"))
+                                        ]
+                                        + SHorizontalBox::Slot()
+                                        .FillWidth(1.0f)
+                                        .Padding(5, 0, 0, 0)
+                                        [
+                                            SAssignNew(MipGenComboBox, SComboBox<TSharedPtr<FString>>)
+                                                .OptionsSource(&CompressionOptions) // 共用数据源（此处可另建独立数据源）
+                                                .OnGenerateWidget_Lambda([](TSharedPtr<FString> Item)
+                                                    {
+                                                        return SNew(STextBlock).Text(FText::FromString(*Item));
+                                                    })
+                                                .OnSelectionChanged(this, &SBatchAssetTool::OnMipGenSelectionChanged)
+                                                [
+                                                    SNew(STextBlock)
+                                                        .Text_Lambda([this]() { return GetMipGenText(); })
+                                                ]
+                                        ]
+                                ]
+                            // SRGB 开关
+                            + SVerticalBox::Slot()
+                                .AutoHeight()
+                                .Padding(0, 5)
+                                [
+                                    SNew(SHorizontalBox)
+                                        + SHorizontalBox::Slot()
+                                        .AutoWidth()
+                                        .VAlign(VAlign_Center)
+                                        [
+                                            SNew(STextBlock).Text(FText::FromString("sRGB:"))
+                                        ]
+                                        + SHorizontalBox::Slot()
+                                        .AutoWidth()
+                                        .Padding(5, 0, 0, 0)
+                                        [
+                                            SAssignNew(SRGBCheckBox, SCheckBox)
+                                                .IsChecked(ECheckBoxState::Checked) // 默认开启
+                                        ]
                                 ]
                         ]
 
@@ -432,6 +549,13 @@ void SBatchAssetTool::Construct(const FArguments& InArgs)
 void SBatchAssetTool::OnOperationChanged(EBatchOperation NewOperation)
 {
     CurrentOperation = NewOperation;
+    // 切换到纹理压缩模式时，强制只勾选纹理类型
+    if (NewOperation == EBatchOperation::CompressTextures)
+    {
+        if (CheckTextures.IsValid()) CheckTextures->SetIsChecked(ECheckBoxState::Checked);
+        if (CheckMaterials.IsValid()) CheckMaterials->SetIsChecked(ECheckBoxState::Unchecked);
+        if (CheckStaticMeshes.IsValid()) CheckStaticMeshes->SetIsChecked(ECheckBoxState::Unchecked);
+    }
     RefreshPreview();
 }
 
@@ -459,6 +583,57 @@ FText SBatchAssetTool::GetStrategyText() const
     case ERenameStrategy::AddSuffix: return FText::FromString("Current: Suffix");
     case ERenameStrategy::SequentialNumber: return FText::FromString("Current: Sequential");
     default: return FText::FromString("Unknown");
+    }
+}
+
+FText SBatchAssetTool::GetCompressionText() const
+{
+    if (SelectedCompressionIndex >= 0 && SelectedCompressionIndex < CompressionOptions.Num())
+    {
+        return FText::FromString(*CompressionOptions[SelectedCompressionIndex]);
+    }
+    return FText::FromString("Select...");
+}
+
+FText SBatchAssetTool::GetMipGenText() const
+{
+    // 简化，实际应使用独立的 MipGenOptions
+    if (SelectedMipGenIndex >= 0 && SelectedMipGenIndex < CompressionOptions.Num())
+    {
+        return FText::FromString(*CompressionOptions[SelectedMipGenIndex]);
+    }
+    return FText::FromString("Select...");
+}
+
+// ==================== 压缩选择回调 ====================
+
+void SBatchAssetTool::OnCompressionSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo)
+{
+    if (NewSelection.IsValid())
+    {
+        for (int32 i = 0; i < CompressionOptions.Num(); i++)
+        {
+            if (CompressionOptions[i] == NewSelection)
+            {
+                SelectedCompressionIndex = i;
+                break;
+            }
+        }
+    }
+}
+
+void SBatchAssetTool::OnMipGenSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo)
+{
+    if (NewSelection.IsValid())
+    {
+        for (int32 i = 0; i < CompressionOptions.Num(); i++)
+        {
+            if (CompressionOptions[i] == NewSelection)
+            {
+                SelectedMipGenIndex = i;
+                break;
+            }
+        }
     }
 }
 
@@ -494,6 +669,11 @@ FString SBatchAssetTool::GenerateTargetName(const FString& SourceName, int32 Ind
         default:
             return SourceName;
         }
+
+    case EBatchOperation::CompressTextures:
+        // 压缩模式下 TargetName 无意义，保持原名即可
+        return SourceName;
+
     default:
         return SourceName;
     }
@@ -521,6 +701,9 @@ FReply SBatchAssetTool::OnExecuteClicked()
         break;
     case EBatchOperation::Rename:
         ExecuteBatchRename();
+        break;
+    case EBatchOperation::CompressTextures:
+        ExecuteTextureCompression();
         break;
     }
 
@@ -649,4 +832,70 @@ void SBatchAssetTool::ExecuteBatchRename()
     ProgressBar->SetPercent(1.0f);
     ProgressText->SetText(FText::FromString(
         FString::Printf(TEXT("Rename completed! %d assets processed."), Total)));
+}
+
+// ==================== 纹理压缩 ====================新增功能
+void SBatchAssetTool::ExecuteTextureCompression()
+{
+    FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+    IAssetTools& AssetTools = AssetToolsModule.Get();
+
+    // 根据选择确定压缩枚举值
+    TextureCompressionSettings CompressionSetting;
+    switch (SelectedCompressionIndex)
+    {
+    case 0: CompressionSetting = TC_Default; break;      // BC1
+    case 1: CompressionSetting = TC_Default; break;      // BC3 通常也用 TC_Default
+    case 2: CompressionSetting = TC_Normalmap; break;    // BC5 用于法线
+    case 3: CompressionSetting = TC_Default; break;      // BC7 高质量
+    default: CompressionSetting = TC_Default; break;
+    }
+
+    TextureMipGenSettings MipSetting;
+    switch (SelectedMipGenIndex)
+    {
+    case 0: MipSetting = TMGS_FromTextureGroup; break;
+    case 1: MipSetting = TMGS_NoMipmaps; break;
+    case 2: MipSetting = TMGS_Blur1; break;
+    case 3: MipSetting = TMGS_Blur2; break;
+    case 4: MipSetting = TMGS_Blur3; break;
+    case 5: MipSetting = TMGS_Blur4; break;
+    case 6: MipSetting = TMGS_Blur5; break;
+    default: MipSetting = TMGS_FromTextureGroup; break;
+    }
+
+    bool bSRGB = SRGBCheckBox.IsValid() && SRGBCheckBox->IsChecked();
+
+    int32 Total = PreviewItems.Num();
+    int32 Processed = 0;
+    TArray<UPackage*> ModifiedPackages;
+
+    for (const TSharedPtr<FAssetPreviewItem>& Item : PreviewItems)
+    {
+        if (!Item.IsValid()) continue;
+
+        UTexture2D* Texture = Cast<UTexture2D>(Item->AssetData.GetAsset());
+        if (!Texture) continue;
+
+        Texture->CompressionSettings = CompressionSetting;
+        Texture->MipGenSettings = MipSetting;
+        Texture->SRGB = bSRGB;
+
+        Texture->MarkPackageDirty();
+        ModifiedPackages.Add(Texture->GetOutermost());
+
+        Processed++;
+        ProgressBar->SetPercent((float)Processed / Total);
+        ProgressText->SetText(FText::FromString(
+            FString::Printf(TEXT("Processing: %d/%d"), Processed, Total)));
+    }
+
+    // 保存修改过的包
+    if (ModifiedPackages.Num() > 0)
+    {
+        FEditorFileUtils::PromptForCheckoutAndSave(ModifiedPackages, true, false);
+    }
+
+    ProgressText->SetText(FText::FromString(
+        FString::Printf(TEXT("Compression updated! %d textures processed."), Processed)));
 }
