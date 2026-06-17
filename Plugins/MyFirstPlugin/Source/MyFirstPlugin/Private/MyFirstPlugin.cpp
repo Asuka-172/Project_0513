@@ -21,6 +21,7 @@
 #include "AssetTools/FAssetInfoCollector.h"
 #include "AssetTools/FMyAssetActions.h"
 #include "AssetTools/SBatchAssetTool.h"
+#include "AssetTools/SAssetPieChart.h"
 
 #define LOCTEXT_NAMESPACE "FMyFirstPluginModule"
 
@@ -432,10 +433,11 @@ void FMyFirstPluginModule::OpenPerformanceWindow()
 void FMyFirstPluginModule::OpenAssetToolsWindow()
 {
     TSharedPtr<STextBlock> AssetStatsText;
+    TSharedPtr<SAssetPieChart> PieChart;
 
     TSharedRef<SWindow> Window = SNew(SWindow)
         .Title(FText::FromString("Asset Statistics"))
-        .ClientSize(FVector2D(500, 300))
+        .ClientSize(FVector2D(600, 400))
         [
             SNew(SVerticalBox)
                 + SVerticalBox::Slot().AutoHeight().Padding(10)
@@ -444,6 +446,20 @@ void FMyFirstPluginModule::OpenAssetToolsWindow()
                         .Text(FText::FromString("Asset Statistics"))
                         .Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
                 ]
+
+                // ★ 关键：文本框和饼图必须创建在按钮之前
+                + SVerticalBox::Slot().AutoHeight().Padding(10)
+                [
+                    SAssignNew(AssetStatsText, STextBlock)
+                        .Text(FText::FromString("Click Refresh to load statistics..."))
+                        .AutoWrapText(true)
+                ]
+                + SVerticalBox::Slot().FillHeight(1.0f).Padding(10)
+                [
+                    SAssignNew(PieChart, SAssetPieChart)
+                ]
+
+                // ★ 按钮放在最后，此时 AssetStatsText 和 PieChart 已经有效
                 + SVerticalBox::Slot().AutoHeight().Padding(10)
                 [
                     SNew(SHorizontalBox)
@@ -451,22 +467,18 @@ void FMyFirstPluginModule::OpenAssetToolsWindow()
                         [
                             SNew(SButton)
                                 .Text(FText::FromString("Refresh Stats"))
-                                .OnClicked_Lambda([this, AssetStatsText]() -> FReply
+                                .OnClicked_Lambda([this, AssetStatsText, PieChart]() -> FReply
                                     {
+                                        // 按值捕获，指针已有效
+                                        UE_LOG(LogTemp, Warning, TEXT("Refresh button clicked!"));
                                         if (!AssetInfoCollector.IsValid())
-                                        {
                                             AssetInfoCollector = MakeShareable(new FAssetInfoCollector);
-                                        }
                                         AssetInfoCollector->Refresh();
 
                                         if (AssetStatsText.IsValid())
                                         {
                                             FString Stats = FString::Printf(
-                                                TEXT("Total Assets: %d\n")
-                                                TEXT("Textures: %d\n")
-                                                TEXT("Materials: %d\n")
-                                                TEXT("Blueprints: %d\n")
-                                                TEXT("Static Meshes: %d"),
+                                                TEXT("Total Assets: %d\nTextures: %d\nMaterials: %d\nBlueprints: %d\nStatic Meshes: %d"),
                                                 AssetInfoCollector->GetTotalCount(),
                                                 AssetInfoCollector->GetTextureCount(),
                                                 AssetInfoCollector->GetMaterialCount(),
@@ -475,15 +487,25 @@ void FMyFirstPluginModule::OpenAssetToolsWindow()
                                             );
                                             AssetStatsText->SetText(FText::FromString(Stats));
                                         }
+
+                                        if (PieChart.IsValid())
+                                        {
+                                            TArray<SAssetPieChart::FSliceData> Slices;
+                                            if (AssetInfoCollector->GetTextureCount() > 0)
+                                                Slices.Add({ TEXT("Textures"), AssetInfoCollector->GetTextureCount(), FLinearColor(0.1f, 0.5f, 0.9f) });
+                                            if (AssetInfoCollector->GetMaterialCount() > 0)
+                                                Slices.Add({ TEXT("Materials"), AssetInfoCollector->GetMaterialCount(), FLinearColor(0.9f, 0.3f, 0.2f) });
+                                            if (AssetInfoCollector->GetBlueprintCount() > 0)
+                                                Slices.Add({ TEXT("Blueprints"), AssetInfoCollector->GetBlueprintCount(), FLinearColor(0.1f, 0.8f, 0.4f) });
+                                            if (AssetInfoCollector->GetStaticMeshCount() > 0)
+                                                Slices.Add({ TEXT("Static Meshes"), AssetInfoCollector->GetStaticMeshCount(), FLinearColor(0.9f, 0.7f, 0.1f) });
+
+                                            PieChart->SetSlices(Slices);
+                                            UE_LOG(LogTemp, Warning, TEXT("Slices set: %d types"), Slices.Num());
+                                        }
                                         return FReply::Handled();
                                     })
                         ]
-                ]
-            + SVerticalBox::Slot().AutoHeight().Padding(10)
-                [
-                    SAssignNew(AssetStatsText, STextBlock)
-                        .Text(FText::FromString("Click Refresh to load statistics..."))
-                        .AutoWrapText(true)
                 ]
         ];
 
