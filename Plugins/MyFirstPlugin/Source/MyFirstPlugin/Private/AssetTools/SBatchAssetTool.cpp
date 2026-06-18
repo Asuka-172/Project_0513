@@ -154,14 +154,6 @@ void SBatchAssetTool::Construct(const FArguments& InArgs)
                                     SNew(STextBlock)
                                         .Text_Lambda([this]() { return GetStrategyText(); })
                                 ]
-                            + SHorizontalBox::Slot()
-                                .AutoWidth()
-                                .Padding(5, 0, 0, 0)
-                                [
-                                    SNew(SButton)
-                                        .Text(FText::FromString("Export Report"))
-                                        .OnClicked(this, &SBatchAssetTool::OnExportReportClicked)
-                                ]
                         ]
 
                     // ===== 重命名参数输入（仅在重命名模式下显示） =====
@@ -548,6 +540,14 @@ void SBatchAssetTool::Construct(const FArguments& InArgs)
                                     SNew(SButton)
                                         .Text(FText::FromString("Cancel"))
                                         .OnClicked(this, &SBatchAssetTool::OnCancelClicked)
+                                ]
+                                + SHorizontalBox::Slot()
+                                .AutoWidth()
+                                .Padding(5, 0, 0, 0)
+                                [
+                                    SNew(SButton)
+                                        .Text(FText::FromString("Export Report"))
+                                        .OnClicked(this, &SBatchAssetTool::OnExportReportClicked)
                                 ]
                         ]
                 ]
