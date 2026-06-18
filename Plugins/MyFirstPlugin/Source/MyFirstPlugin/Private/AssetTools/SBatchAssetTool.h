@@ -12,6 +12,7 @@
 #include "Widgets/Input/SComboBox.h"
 #include "AssetRegistry/AssetData.h"
 #include "Engine/TextureDefines.h"
+#include "BatchOperationHistory/FBatchOperationHistory.h"
 
 // 操作类型
 enum class EBatchOperation : uint8
@@ -100,13 +101,6 @@ private:
     // 预览刷新
     void RefreshPreview();
 
-    // 执行批量复制
-    void ExecuteBatchCopy();
-    // 执行批量重命名
-    void ExecuteBatchRename();
-	// 执行批量纹理压缩
-    void ExecuteTextureCompression();
-
     // 判断资产类型是否被选中
     bool IsAssetTypeSelected(const FAssetData& Asset) const;
 
@@ -142,10 +136,11 @@ private:
     // 处理单个资产（同步版本，供分帧调用）
     bool ProcessSingleAsset(const TSharedPtr<FAssetPreviewItem>& Item, EBatchOperation Operation);
 
-    // 撤销支持
-    void BeginUndoTransaction();
-    void EndUndoTransaction();
-
     // 日志辅助
     void LogOperationResult(const FString& AssetName, const FString& Action, bool bSuccess, const FString& ErrorMsg = TEXT(""));
+    
+    FBatchOperationHistory OperationHistory;   // 操作历史
+    FString LastExportFilePath;                 // 上次导出文件路径
+
+    FReply OnExportReportClicked();             // 导出按钮回调
 };

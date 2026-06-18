@@ -154,6 +154,14 @@ void SBatchAssetTool::Construct(const FArguments& InArgs)
                                     SNew(STextBlock)
                                         .Text_Lambda([this]() { return GetStrategyText(); })
                                 ]
+                            + SHorizontalBox::Slot()
+                                .AutoWidth()
+                                .Padding(5, 0, 0, 0)
+                                [
+                                    SNew(SButton)
+                                        .Text(FText::FromString("Export Report"))
+                                        .OnClicked(this, &SBatchAssetTool::OnExportReportClicked)
+                                ]
                         ]
 
                     // ===== 重命名参数输入（仅在重命名模式下显示） =====
@@ -746,74 +754,91 @@ void SBatchAssetTool::FinishAsyncExecution()
 
 bool SBatchAssetTool::ProcessSingleAsset(const TSharedPtr<FAssetPreviewItem>& Item, EBatchOperation Operation)
 {
-    if (!Item.IsValid()) return false;
+    if (!Item.IsValid())
+        return false;
 
     UObject* Asset = Item->AssetData.GetAsset();
     if (!Asset)
     {
-        LogOperationResult(Item->SourceName, "Load", false, "Failed to load asset");
+        LogOperationResult(Item->SourceName, TEXT("Load"), false, TEXT("Failed to load asset"));
         return false;
     }
 
     // 开启撤销事务
     FScopedTransaction Transaction(FText::FromString("Batch Asset Operation"));
 
+    bool bSuccess = false;
+    FString SourcePath = Item->AssetData.PackagePath.ToString();
+    FString TargetName = Item->TargetName;
+    FString OpName;
+
     switch (Operation)
     {
     case EBatchOperation::Copy:
     {
+        OpName = TEXT("Copy");
+
         FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
         IAssetTools& AssetTools = AssetToolsModule.Get();
         FString TargetPath = TargetPathInput.IsValid() ? TargetPathInput->GetText().ToString() : TEXT("/Game/Copied");
         if (TargetPath.IsEmpty()) TargetPath = TEXT("/Game/Copied");
 
-        FString NewName = Item->TargetName;
-        FString FullPath = TargetPath / NewName;
+        FString FullPath = TargetPath / TargetName;
         if (StaticLoadObject(UObject::StaticClass(), nullptr, *FullPath))
         {
-            LogOperationResult(Item->SourceName, "Copy", false, "Asset with same name already exists");
+            LogOperationResult(Item->SourceName, OpName, false, TEXT("Asset with same name already exists"));
             SkipCount++;
+            // 记录失败历史
+            OperationHistory.AddEntry(OpName, Item->SourceName, SourcePath, TargetName, false);
             return false;
         }
 
         Asset->Modify();
-        AssetTools.DuplicateAsset(NewName, TargetPath, Asset);
-        LogOperationResult(Item->SourceName, "Copy", true);
-        return true;
+        AssetTools.DuplicateAsset(TargetName, TargetPath, Asset);
+        LogOperationResult(Item->SourceName, OpName, true);
+        bSuccess = true;
+        break;
     }
     case EBatchOperation::Rename:
     {
+        OpName = TEXT("Rename");
+
         FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
         IAssetTools& AssetTools = AssetToolsModule.Get();
 
         TArray<FAssetRenameData> RenameArray;
-        FAssetRenameData RenameData(Asset, Asset->GetOutermost()->GetName(), Item->TargetName);
+        FAssetRenameData RenameData(Asset, Asset->GetOutermost()->GetName(), TargetName);
         RenameArray.Add(RenameData);
 
         Asset->Modify();
         if (AssetTools.RenameAssets(RenameArray))
         {
-            LogOperationResult(Item->SourceName, "Rename", true);
-            return true;
+            LogOperationResult(Item->SourceName, OpName, true);
+            bSuccess = true;
         }
         else
         {
-            LogOperationResult(Item->SourceName, "Rename", false, "RenameAssets failed");
-            return false;
+            LogOperationResult(Item->SourceName, OpName, false, TEXT("RenameAssets failed"));
+            bSuccess = false;
         }
+        break;
     }
     case EBatchOperation::CompressTextures:
     {
+        OpName = TEXT("Compress");
+
         UTexture2D* Texture = Cast<UTexture2D>(Asset);
         if (!Texture)
         {
-            LogOperationResult(Item->SourceName, "Compress", false, "Not a texture");
+            LogOperationResult(Item->SourceName, OpName, false, TEXT("Not a texture"));
             SkipCount++;
+            OperationHistory.AddEntry(OpName, Item->SourceName, SourcePath, TargetName, false);
             return false;
         }
 
         Texture->Modify();
 
+        // 压缩设置
         TextureCompressionSettings CompressionSetting;
         switch (SelectedCompressionIndex)
         {
@@ -825,6 +850,7 @@ bool SBatchAssetTool::ProcessSingleAsset(const TSharedPtr<FAssetPreviewItem>& It
         }
         Texture->CompressionSettings = CompressionSetting;
 
+        // Mip 设置（简化映射）
         TextureMipGenSettings MipSetting = TMGS_FromTextureGroup;
         if (SelectedMipGenIndex == 1) MipSetting = TMGS_NoMipmaps;
         else if (SelectedMipGenIndex >= 2 && SelectedMipGenIndex <= 6)
@@ -833,12 +859,19 @@ bool SBatchAssetTool::ProcessSingleAsset(const TSharedPtr<FAssetPreviewItem>& It
 
         Texture->SRGB = SRGBCheckBox.IsValid() && SRGBCheckBox->IsChecked();
         Texture->MarkPackageDirty();
-        LogOperationResult(Item->SourceName, "Compress", true);
-        return true;
+        LogOperationResult(Item->SourceName, OpName, true);
+        bSuccess = true;
+        // 压缩操作的 TargetName 可以用来记录压缩格式等，这里简单保持 Item->TargetName（通常为原名称）
+        break;
     }
     default:
         return false;
     }
+
+    // 记录操作历史
+    OperationHistory.AddEntry(OpName, Item->SourceName, SourcePath, TargetName, bSuccess);
+
+    return bSuccess;
 }
 
 // ==================== 预览逻辑 ====================
@@ -906,4 +939,26 @@ void SBatchAssetTool::LogOperationResult(const FString& AssetName, const FString
         UE_LOG(LogTemp, Warning, TEXT("[BatchTool] %s: %s failed. %s"),
             *AssetName, *Action, ErrorMsg.IsEmpty() ? TEXT("") : *ErrorMsg);
     }
+}
+
+// ==================== 导出文件回调事件 ====================
+
+FReply SBatchAssetTool::OnExportReportClicked()
+{
+    // 生成带时间戳的文件名
+    FString Timestamp = FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S"));
+    FString FileName = FString::Printf(TEXT("BatchReport_%s.csv"), *Timestamp);
+
+    FString ExportedPath = OperationHistory.ExportToCSV(FileName);
+    if (!ExportedPath.IsEmpty())
+    {
+        ProgressText->SetText(FText::FromString(
+            FString::Printf(TEXT("Report exported to: Saved/BatchReports/%s"), *FileName)));
+    }
+    else
+    {
+        ProgressText->SetText(FText::FromString("Export failed!"));
+    }
+
+    return FReply::Handled();
 }
