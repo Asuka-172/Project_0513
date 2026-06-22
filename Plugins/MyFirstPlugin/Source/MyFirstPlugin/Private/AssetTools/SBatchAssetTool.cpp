@@ -149,6 +149,18 @@ void SBatchAssetTool::Construct(const FArguments& InArgs)
                                 ]
                             + SHorizontalBox::Slot()
                                 .AutoWidth()
+                                .Padding(5, 0, 0, 0)
+                                [
+                                    SNew(SButton)
+                                        .Text(FText::FromString("Auto Fix"))
+                                        .OnClicked_Lambda([this]() -> FReply
+                                            {
+                                                OnStrategyChanged(ERenameStrategy::AutoFix);
+                                                return FReply::Handled();
+                                            })
+                                ]
+                            + SHorizontalBox::Slot()
+                                .AutoWidth()
                                 .Padding(10, 0, 0, 0)
                                 [
                                     SNew(STextBlock)
@@ -592,6 +604,7 @@ FText SBatchAssetTool::GetStrategyText() const
     case ERenameStrategy::AddPrefix: return FText::FromString("Current: Prefix");
     case ERenameStrategy::AddSuffix: return FText::FromString("Current: Suffix");
     case ERenameStrategy::SequentialNumber: return FText::FromString("Current: Sequential");
+    case ERenameStrategy::AutoFix: return FText::FromString("Current: Auto Fix");
     default: return FText::FromString("Unknown");
     }
 }
@@ -876,7 +889,7 @@ bool SBatchAssetTool::ProcessSingleAsset(const TSharedPtr<FAssetPreviewItem>& It
 
 // ==================== 预览逻辑 ====================
 
-void SBatchAssetTool::RefreshPreview()
+/*void SBatchAssetTool::RefreshPreview()
 {
     PreviewItems.Empty();
 
@@ -900,6 +913,50 @@ void SBatchAssetTool::RefreshPreview()
         TSharedPtr<FAssetPreviewItem> Item = MakeShareable(new FAssetPreviewItem);
         Item->SourceName = Asset.AssetName.ToString();
         Item->TargetName = GenerateTargetName(Item->SourceName, Index);
+        Item->AssetData = Asset;
+        PreviewItems.Add(Item);
+        Index++;
+    }
+
+    PreviewList->RequestListRefresh();
+    PreviewCountText->SetText(FText::FromString(
+        FString::Printf(TEXT("%d assets will be affected"), PreviewItems.Num())));
+}*/
+
+void SBatchAssetTool::RefreshPreview()
+{
+    PreviewItems.Empty();
+
+    FString SourcePath = SourcePathInput.IsValid() ? SourcePathInput->GetText().ToString() : TEXT("/Game");
+    if (SourcePath.IsEmpty()) SourcePath = TEXT("/Game");
+
+    IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+
+    FARFilter Filter;
+    Filter.bRecursivePaths = true;
+    Filter.PackagePaths.Add(FName(*SourcePath));
+
+    TArray<FAssetData> AllAssets;
+    AssetRegistry.GetAssets(Filter, AllAssets);
+
+    int32 Index = 0;
+    for (const FAssetData& Asset : AllAssets)
+    {
+        if (!IsAssetTypeSelected(Asset)) continue;
+
+        TSharedPtr<FAssetPreviewItem> Item = MakeShareable(new FAssetPreviewItem);
+        Item->SourceName = Asset.AssetName.ToString();
+
+        // 根据模式生成目标名称
+        if (CurrentOperation == EBatchOperation::Rename && CurrentStrategy == ERenameStrategy::AutoFix)
+        {
+            // 使用命名规则自动生成
+            Item->TargetName = FAssetNamingRules::SuggestNewName(Asset);
+        }
+        else
+        {
+            Item->TargetName = GenerateTargetName(Item->SourceName, Index);
+        }
         Item->AssetData = Asset;
         PreviewItems.Add(Item);
         Index++;

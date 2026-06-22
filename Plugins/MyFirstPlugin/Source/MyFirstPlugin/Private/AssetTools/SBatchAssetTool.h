@@ -13,6 +13,7 @@
 #include "AssetRegistry/AssetData.h"
 #include "Engine/TextureDefines.h"
 #include "BatchOperationHistory/FBatchOperationHistory.h"
+#include "AssetTools/FAssetNamingRules.h"
 
 // 操作类型
 enum class EBatchOperation : uint8
@@ -27,7 +28,8 @@ enum class ERenameStrategy : uint8
 {
     AddPrefix,
     AddSuffix,
-    SequentialNumber
+    SequentialNumber,
+    AutoFix
 };
 
 // 预览列表项
