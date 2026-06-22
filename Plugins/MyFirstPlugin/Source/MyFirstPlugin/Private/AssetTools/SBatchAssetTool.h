@@ -13,7 +13,8 @@
 #include "AssetRegistry/AssetData.h"
 #include "Engine/TextureDefines.h"
 #include "BatchOperationHistory/FBatchOperationHistory.h"
-#include "AssetTools/FAssetNamingRules.h"
+#include "FAssetNamingRules.h"
+#include "FTextureCompressionAutomator.h"
 
 // ²Ù×÷ÀàÐÍ
 enum class EBatchOperation : uint8

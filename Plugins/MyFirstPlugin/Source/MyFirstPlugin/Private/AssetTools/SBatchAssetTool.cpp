@@ -315,6 +315,52 @@ void SBatchAssetTool::Construct(const FArguments& InArgs)
                                                 ]
                                         ]
                                 ]
+
+                                // Auto Detect 按钮
+                                + SVerticalBox::Slot()
+                                .AutoHeight()
+                                .Padding(5, 0, 0, 0)
+                                [
+                                    SNew(SButton)
+                                        .Text(FText::FromString("Auto Detect"))
+                                        .OnClicked_Lambda([this]() -> FReply
+                                            {
+                                                // 遍历预览列表中的纹理，自动设置压缩选项
+                                                if (PreviewItems.Num() > 0)
+                                                {
+                                                    // 取第一个纹理进行分析（示例：只分析第一个）
+                                                    for (const TSharedPtr<FAssetPreviewItem>& Item : PreviewItems)
+                                                    {
+                                                        UTexture2D* Texture = Cast<UTexture2D>(Item->AssetData.GetAsset());
+                                                        if (Texture)
+                                                        {
+                                                            // 推荐压缩设置
+                                                            TextureCompressionSettings RecommendedComp =
+                                                                FTextureCompressionAutomator::GetRecommendedCompression(Texture);
+                                                            SelectedCompressionIndex =
+                                                                FTextureCompressionAutomator::GetCompressionIndexFromSettings(RecommendedComp);
+
+                                                            // 推荐 sRGB
+                                                            bool bSRGB = FTextureCompressionAutomator::GetRecommendedSRGB(Texture);
+                                                            if (SRGBCheckBox.IsValid())
+                                                                SRGBCheckBox->SetIsChecked(bSRGB ? ECheckBoxState::Checked : ECheckBoxState::Unchecked);
+
+                                                            // 推荐 Mip Gen
+                                                            TextureMipGenSettings RecommendedMip =
+                                                                FTextureCompressionAutomator::GetRecommendedMipGen(Texture);
+                                                            SelectedMipGenIndex =
+                                                                FTextureCompressionAutomator::GetMipGenIndexFromSettings(RecommendedMip);
+
+                                                            UE_LOG(LogTemp, Log, TEXT("Auto Detect: Texture=%s, CompIndex=%d, sRGB=%d, MipIndex=%d"),
+                                                                *Texture->GetName(), SelectedCompressionIndex, bSRGB, SelectedMipGenIndex);
+                                                            break; // 只分析第一个，后续可扩展为统计最常见的设置
+                                                        }
+                                                    }
+                                                }
+                                                return FReply::Handled();
+                                            })
+                                ]
+
                             // Mip 生成下拉
                             + SVerticalBox::Slot()
                                 .AutoHeight()
