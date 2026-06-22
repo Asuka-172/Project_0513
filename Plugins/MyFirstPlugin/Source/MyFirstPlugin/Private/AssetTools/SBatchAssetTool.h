@@ -21,7 +21,8 @@ enum class EBatchOperation : uint8
 {
     Copy,
     Rename,
-    CompressTextures
+    CompressTextures,
+    StaticMeshSettings
 };
 
 // 重命名策略
@@ -146,4 +147,19 @@ private:
     FString LastExportFilePath;                 // 上次导出文件路径
 
     FReply OnExportReportClicked();             // 导出按钮回调
+
+    // ===== 静态网格设置参数 =====
+    TSharedPtr<SCheckBox> CheckGenerateLightmapUVs;
+    TSharedPtr<SCheckBox> CheckAutoComputeLOD;
+    TSharedPtr<SCheckBox> CheckBuildNanite;
+    TArray<TSharedPtr<FString>> CollisionOptions;          // 碰撞选项数据源
+    TSharedPtr<SComboBox<TSharedPtr<FString>>> CollisionComboBox; // 碰撞下拉框
+    int32 SelectedCollisionIndex = 0;
+
+    // 静态网格设置回调
+    void OnCollisionSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
+    FText GetCollisionText() const;
+
+    // 用于收集修改的包（统一保存）
+    TArray<UPackage*> ModifiedPackages;
 };

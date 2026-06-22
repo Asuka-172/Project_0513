@@ -11,6 +11,8 @@
 #include "Engine/StaticMesh.h"
 #include "FileHelpers.h"
 #include "Engine/Texture2D.h"
+#include "PhysicsEngine/BodySetup.h"
+#include "StaticMeshResources.h"
 
 void SBatchAssetTool::Construct(const FArguments& InArgs)
 {
@@ -19,6 +21,11 @@ void SBatchAssetTool::Construct(const FArguments& InArgs)
     CompressionOptions.Add(MakeShareable(new FString(TEXT("BC3 (DXT5)"))));
     CompressionOptions.Add(MakeShareable(new FString(TEXT("BC5 (Normal Map)"))));
     CompressionOptions.Add(MakeShareable(new FString(TEXT("BC7"))));
+
+    // 初始化碰撞选项（放在 Compress 选项初始化之后）
+    CollisionOptions.Add(MakeShareable(new FString(TEXT("Use Default"))));
+    CollisionOptions.Add(MakeShareable(new FString(TEXT("Simple Collision"))));
+    CollisionOptions.Add(MakeShareable(new FString(TEXT("Complex Collision"))));
 
     ChildSlot
         [
@@ -82,6 +89,18 @@ void SBatchAssetTool::Construct(const FArguments& InArgs)
                                         .OnClicked_Lambda([this]() -> FReply
                                             {
                                                 OnOperationChanged(EBatchOperation::CompressTextures);
+                                                return FReply::Handled();
+                                            })
+                                ]
+                            + SHorizontalBox::Slot()
+                                .AutoWidth()
+                                .Padding(5, 0, 0, 0)
+                                [
+                                    SNew(SButton)
+                                        .Text(FText::FromString("Mesh"))
+                                        .OnClicked_Lambda([this]() -> FReply
+                                            {
+                                                OnOperationChanged(EBatchOperation::StaticMeshSettings);
                                                 return FReply::Handled();
                                             })
                                 ]
@@ -412,6 +431,88 @@ void SBatchAssetTool::Construct(const FArguments& InArgs)
                                 ]
                         ]
 
+                        // ===== 静态网格设置区域 =====
+                        + SVerticalBox::Slot()
+                            .AutoHeight()
+                            .Padding(10)
+                            [
+                                SNew(SVerticalBox)
+                                    .Visibility_Lambda([this]()
+                                        {
+                                            return CurrentOperation == EBatchOperation::StaticMeshSettings
+                                                ? EVisibility::Visible : EVisibility::Collapsed;
+                                        })
+                                    + SVerticalBox::Slot()
+                                    .AutoHeight()
+                                    [
+                                        SNew(STextBlock)
+                                            .Text(FText::FromString("Static Mesh Settings"))
+                                            .Font(FCoreStyle::GetDefaultFontStyle("Bold", 12))
+                                    ]
+                                    // 生成光照贴图 UVs
+                                    + SVerticalBox::Slot()
+                                    .AutoHeight()
+                                    .Padding(0, 5)
+                                    [
+                                        SAssignNew(CheckGenerateLightmapUVs, SCheckBox)
+                                            .IsChecked(ECheckBoxState::Unchecked)
+                                            [
+                                                SNew(STextBlock).Text(FText::FromString("Generate Lightmap UVs"))
+                                            ]
+                                    ]
+                                // 自动计算LOD距离
+                                + SVerticalBox::Slot()
+                                    .AutoHeight()
+                                    .Padding(0, 5)
+                                    [
+                                        SAssignNew(CheckAutoComputeLOD, SCheckBox)
+                                            .IsChecked(ECheckBoxState::Checked)
+                                            [
+                                                SNew(STextBlock).Text(FText::FromString("Auto Compute LOD Distances"))
+                                            ]
+                                    ]
+                                // 构建 Nanite
+                                + SVerticalBox::Slot()
+                                    .AutoHeight()
+                                    .Padding(0, 5)
+                                    [
+                                        SAssignNew(CheckBuildNanite, SCheckBox)
+                                            .IsChecked(ECheckBoxState::Unchecked)
+                                            [
+                                                SNew(STextBlock).Text(FText::FromString("Build Nanite"))
+                                            ]
+                                    ]
+                                // 碰撞复杂度
+                                + SVerticalBox::Slot()
+                                    .AutoHeight()
+                                    .Padding(0, 5)
+                                    [
+                                        SNew(SHorizontalBox)
+                                            + SHorizontalBox::Slot()
+                                            .AutoWidth()
+                                            .VAlign(VAlign_Center)
+                                            [
+                                                SNew(STextBlock).Text(FText::FromString("Collision:"))
+                                            ]
+                                            + SHorizontalBox::Slot()
+                                            .FillWidth(1.0f)
+                                            .Padding(5, 0, 0, 0)
+                                            [
+                                                SAssignNew(CollisionComboBox, SComboBox<TSharedPtr<FString>>)
+                                                    .OptionsSource(&CollisionOptions)
+                                                    .OnGenerateWidget_Lambda([](TSharedPtr<FString> Item)
+                                                        {
+                                                            return SNew(STextBlock).Text(FText::FromString(*Item));
+                                                        })
+                                                    .OnSelectionChanged(this, &SBatchAssetTool::OnCollisionSelectionChanged)
+                                                    [
+                                                        SNew(STextBlock)
+                                                            .Text_Lambda([this]() { return GetCollisionText(); })
+                                                    ]
+                                            ]
+                                    ]
+                            ]
+
                     // ===== 源目录 =====
                     + SVerticalBox::Slot()
                         .AutoHeight()
@@ -623,6 +724,13 @@ void SBatchAssetTool::OnOperationChanged(EBatchOperation NewOperation)
         if (CheckMaterials.IsValid()) CheckMaterials->SetIsChecked(ECheckBoxState::Unchecked);
         if (CheckStaticMeshes.IsValid()) CheckStaticMeshes->SetIsChecked(ECheckBoxState::Unchecked);
     }
+    else if (NewOperation == EBatchOperation::StaticMeshSettings)
+    {
+        // 静态网格设置模式只处理静态网格
+        if (CheckTextures.IsValid()) CheckTextures->SetIsChecked(ECheckBoxState::Unchecked);
+        if (CheckMaterials.IsValid()) CheckMaterials->SetIsChecked(ECheckBoxState::Unchecked);
+        if (CheckStaticMeshes.IsValid()) CheckStaticMeshes->SetIsChecked(ECheckBoxState::Checked);
+    }
     RefreshPreview();
 }
 
@@ -632,6 +740,19 @@ void SBatchAssetTool::OnStrategyChanged(ERenameStrategy NewStrategy)
     RefreshPreview();
 }
 
+void SBatchAssetTool::OnCollisionSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo)
+{
+    if (NewSelection.IsValid())
+    {
+        for (int32 i = 0; i < CollisionOptions.Num(); i++)
+            if (CollisionOptions[i] == NewSelection)
+            {
+                SelectedCollisionIndex = i;
+                break;
+            }
+    }
+}
+
 FText SBatchAssetTool::GetOperationText() const
 {
     switch (CurrentOperation)
@@ -639,6 +760,7 @@ FText SBatchAssetTool::GetOperationText() const
     case EBatchOperation::Copy: return FText::FromString("Current: Copy");
     case EBatchOperation::Rename: return FText::FromString("Current: Rename");
     case EBatchOperation::CompressTextures: return FText::FromString("Current: Compress");
+    case EBatchOperation::StaticMeshSettings: return FText::FromString("Current: Mesh Settings");
     default: return FText::FromString("Unknown");
     }
 }
@@ -666,6 +788,13 @@ FText SBatchAssetTool::GetMipGenText() const
 {
     if (SelectedMipGenIndex >= 0 && SelectedMipGenIndex < CompressionOptions.Num())
         return FText::FromString(*CompressionOptions[SelectedMipGenIndex]);
+    return FText::FromString("Select...");
+}
+
+FText SBatchAssetTool::GetCollisionText() const
+{
+    if (SelectedCollisionIndex >= 0 && SelectedCollisionIndex < CollisionOptions.Num())
+        return FText::FromString(*CollisionOptions[SelectedCollisionIndex]);
     return FText::FromString("Select...");
 }
 
@@ -764,6 +893,7 @@ void SBatchAssetTool::StartAsyncExecution()
     bIsAsyncExecuting = true;
     CurrentAsyncIndex = 0;
     SuccessCount = SkipCount = FailCount = 0;
+    ModifiedPackages.Empty(); // 清空包列表
 
     ProgressBar->SetPercent(0.0f);
     ProgressText->SetText(FText::FromString("Starting..."));
@@ -801,6 +931,11 @@ bool SBatchAssetTool::ProcessNextAsset(float DeltaTime)
 void SBatchAssetTool::FinishAsyncExecution()
 {
     bIsAsyncExecuting = false;
+    if (ModifiedPackages.Num() > 0)
+    {
+        FEditorFileUtils::PromptForCheckoutAndSave(ModifiedPackages, true, false);
+        ModifiedPackages.Empty();
+    }
 
     FString Report = FString::Printf(
         TEXT("Batch operation completed. Success: %d, Failed: %d, Skipped: %d"),
@@ -923,6 +1058,66 @@ bool SBatchAssetTool::ProcessSingleAsset(const TSharedPtr<FAssetPreviewItem>& It
         // 压缩操作的 TargetName 可以用来记录压缩格式等，这里简单保持 Item->TargetName（通常为原名称）
         break;
     }
+    case EBatchOperation::StaticMeshSettings:
+    {
+        OpName = TEXT("StaticMeshSettings");
+
+        UStaticMesh* Mesh = Cast<UStaticMesh>(Asset);
+        if (!Mesh)
+        {
+            LogOperationResult(Item->SourceName, OpName, false, TEXT("Not a static mesh"));
+            SkipCount++;
+            OperationHistory.AddEntry(OpName, Item->SourceName, SourcePath, TargetName, false);
+            return false;
+        }
+
+        Mesh->Modify();
+
+        // 1. 生成光照贴图 UV
+        // UE5 中需要通过 SourceModels 设置
+        bool bGenLightmap = CheckGenerateLightmapUVs.IsValid() && CheckGenerateLightmapUVs->IsChecked();
+        for (int32 LODIndex = 0; LODIndex < Mesh->GetNumSourceModels(); ++LODIndex)
+        {
+            FStaticMeshSourceModel& SourceModel = Mesh->GetSourceModel(LODIndex);
+            SourceModel.BuildSettings.bGenerateLightmapUVs = bGenLightmap;
+        }
+
+        // 2. 自动计算 LOD
+        // UE5.6 中 bAutoComputeLODScreenSize 已废弃，LOD 通常通过 LODSettings 资产控制
+        // 这里仅记录日志，不实际修改（避免 API 错误）
+        bool bAutoLOD = CheckAutoComputeLOD.IsValid() && CheckAutoComputeLOD->IsChecked();
+        if (bAutoLOD)
+        {
+            UE_LOG(LogTemp, Log, TEXT("[StaticMeshSettings] Auto Compute LOD requested for %s, but API has changed in UE5.6. Skipping."), *Mesh->GetName());
+            // 未来可通过修改 Mesh->LODSettings 或自定义 LODGroup 来实现
+        }
+
+        // 3. Nanite
+        bool bNanite = CheckBuildNanite.IsValid() && CheckBuildNanite->IsChecked();
+        Mesh->NaniteSettings.bEnabled = bNanite;
+
+        // 4. 碰撞复杂度
+        // 必须使用公共访问器 GetBodySetup()
+        UBodySetup* BodySetup = Mesh->GetBodySetup();
+        if (BodySetup)
+        {
+            ECollisionTraceFlag CollisionFlag = CTF_UseDefault;
+            switch (SelectedCollisionIndex)
+            {
+            case 1: CollisionFlag = CTF_UseSimpleAsComplex; break;
+            case 2: CollisionFlag = CTF_UseComplexAsSimple; break;
+            default: CollisionFlag = CTF_UseDefault;
+            }
+            BodySetup->CollisionTraceFlag = CollisionFlag;
+        }
+
+        Mesh->MarkPackageDirty();
+        ModifiedPackages.AddUnique(Mesh->GetOutermost());
+
+        LogOperationResult(Item->SourceName, OpName, true);
+        bSuccess = true;
+        break;
+    }
     default:
         return false;
     }
@@ -934,41 +1129,6 @@ bool SBatchAssetTool::ProcessSingleAsset(const TSharedPtr<FAssetPreviewItem>& It
 }
 
 // ==================== 预览逻辑 ====================
-
-/*void SBatchAssetTool::RefreshPreview()
-{
-    PreviewItems.Empty();
-
-    FString SourcePath = SourcePathInput.IsValid() ? SourcePathInput->GetText().ToString() : TEXT("/Game");
-    if (SourcePath.IsEmpty()) SourcePath = TEXT("/Game");
-
-    IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
-
-    FARFilter Filter;
-    Filter.bRecursivePaths = true;
-    Filter.PackagePaths.Add(FName(*SourcePath));
-
-    TArray<FAssetData> AllAssets;
-    AssetRegistry.GetAssets(Filter, AllAssets);
-
-    int32 Index = 0;
-    for (const FAssetData& Asset : AllAssets)
-    {
-        if (!IsAssetTypeSelected(Asset)) continue;
-
-        TSharedPtr<FAssetPreviewItem> Item = MakeShareable(new FAssetPreviewItem);
-        Item->SourceName = Asset.AssetName.ToString();
-        Item->TargetName = GenerateTargetName(Item->SourceName, Index);
-        Item->AssetData = Asset;
-        PreviewItems.Add(Item);
-        Index++;
-    }
-
-    PreviewList->RequestListRefresh();
-    PreviewCountText->SetText(FText::FromString(
-        FString::Printf(TEXT("%d assets will be affected"), PreviewItems.Num())));
-}*/
-
 void SBatchAssetTool::RefreshPreview()
 {
     PreviewItems.Empty();
