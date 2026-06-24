@@ -139,22 +139,24 @@ MyFirstPlugin 是一个 UE5.6 编辑器插件，通过 **Window → My First Too
 │ ├── SColorWheel.h/cpp # 颜色选择器控件
 │ ├── SPostProcessPanel.h/cpp # 后处理参数面板
 │ ├── MPostProcessManager.h/cpp # 后处理管理器
+│ ├── SMyProgressBar.h/cpp # 练习SlateUI控件
 │ ├── SFpsChart/
 │ │ ├── SFpsChart.h/cpp # 帧率趋势图控件
 │ │ └── SPerformancePanel.h/cpp # 综合性能监控面板
-│ ├── SAssetPieChart.h/cpp # 资产分布柱状图控件
 │ ├── Network/
 │ │ ├── FTcpEchoServer.h/cpp # TCP Echo 服务器
 │ │ ├── FTcpEchoClient.h/cpp # TCP Echo 客户端
 │ │ └── FUdpChatRoom.h/cpp # UDP 聊天室
-│ └── AssetTools/
-│ 	├── FAssetInfoCollector.cpp # 资产统计实现
-│ 	├── FMyAssetActions.h/cpp # 资产右键菜单扩展
-│ 	├── SBatchAssetTool.h/cpp # 批量资产处理工具（复制/重命名/压缩/静态网格）
-│ 	├── FBatchOperationHistory.h/cpp # 操作历史与CSV导出
-│ 	├── FAssetNamingRules.h/cpp # 命名规范自动修正规则引擎
-│ 	└── FTextureCompressionAutomator.h/cpp # 纹理压缩智能推荐
-│ 
+│ ├── AssetTools/
+│ │	├── FAssetInfoCollector.h/cpp # 资产统计实现
+│ │	├── FMyAssetActions.h/cpp # 资产右键菜单扩展
+│ │   ├── SAssetPieChart.h/cpp # 资产分布柱状图控件
+│ │	├── SBatchAssetTool.h/cpp # 批量资产处理工具（复制/重命名/压缩/静态网格）
+│ │	├── FAssetNamingRules.h/cpp # 命名规范自动修正规则引擎
+│ │	└── FTextureCompressionAutomator.h/cpp # 纹理压缩智能推荐
+│ └BatchOperationHistory/
+│ 	└──FBatchOperationHistory.h/cpp # 操作历史与CSV导出
+│
 └── Content/ # 可放置后处理材质资源（M_PP_*）
 
 ---
